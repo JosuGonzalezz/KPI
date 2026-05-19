@@ -2,8 +2,43 @@
 // SUPABASE SERVER — Funciones async para usar en rutas API
 // ============================================================
 
-import { supabase } from './supabase';
-import type { DailyRecord, AppConfig } from './supabase';
+import { createClient } from '@supabase/supabase-js';
+
+// Crear cliente de Supabase para el servidor
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
+
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: false,
+  },
+});
+
+// Tipos
+export type DailyRecord = {
+  id: number;
+  fecha: string;
+  year: number;
+  month: number;
+  day: number;
+  colon: number | null;
+  serrano: number | null;
+  peron: number | null;
+  san_martin: number | null;
+  virtual: number | null;
+  total: number;
+  tipo: 'Clientes' | 'Producto' | 'Facturacion';
+  created_at: string;
+};
+
+export type AppConfig = {
+  id: number;
+  current_year: number;
+  current_month: number;
+  current_day: number;
+  updated_at: string;
+};
 
 // ── Config ────────────────────────────────────────────────────
 
