@@ -67,6 +67,8 @@ export default function ComandosPage() {
   // ── Store overview state ───────────────────────────────────
   const [storeStats, setStoreStats]   = useState<StoreStats[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [allRecords, setAllRecords] = useState<DailyRecord[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // ── Load config on mount ───────────────────────────────────
   useEffect(() => {
@@ -83,6 +85,7 @@ export default function ComandosPage() {
     try {
       const res  = await fetch("/api/data");
       const data = await res.json() as { records: DailyRecord[] };
+      setAllRecords(data.records);
       const map  = new Map<string, StoreStats>();
 
       for (const r of data.records) {
@@ -277,6 +280,23 @@ export default function ComandosPage() {
     loadStoreStats();
   }
 
+  // ── Delete all data ────────────────────────────────────────
+  async function handleDeleteAllData() {
+    if (!confirm("¿Estás seguro? Esto eliminará TODOS los datos de la base de datos. Esta acción no se puede deshacer.")) return;
+    if (!confirm("Confirmar: ¿Eliminar TODOS los datos?")) return;
+    
+    try {
+      // Eliminar cada mes
+      for (const stat of storeStats) {
+        await fetch(`/api/data?year=${stat.year}&month=${stat.month}`, { method: "DELETE" });
+      }
+      setShowDeleteConfirm(false);
+      loadStoreStats();
+    } catch (e) {
+      console.error("Error deleting all data:", e);
+    }
+  }
+
   // ── Preview agrupado ───────────────────────────────────────
   const previewByTipo = (tipo: TipoMetrica) => preview.filter(r => r.tipo === tipo);
   const previewMonths = [...new Set(preview.map(r => `${MONTHS[r.month - 1]} ${r.year}`))];
@@ -374,7 +394,7 @@ export default function ComandosPage() {
                 ].map(({ label, val, color }) => (
                   <div key={label} className={`border rounded-lg p-2.5 ${color}`}>
                     <p className="text-[9px] uppercase tracking-wider opacity-70">{label}</p>
-                    <p className="text-xs font-semibold mt-0.5">{val}</p>
+                    <p className="text-xs font-semibold mt-0.5">{val || "—"}</p>
                   </div>
                 ));
               })()}
@@ -499,6 +519,45 @@ export default function ComandosPage() {
                 </button>
               </div>
             </div>
+          </section>
+
+          {/* Gestión de base de datos */}
+          <section className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col gap-3 col-span-2">
+            <div className="flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-red-300" />
+              <h2 className="text-sm font-semibold text-white">Gestión de base de datos</h2>
+            </div>
+            
+            {showDeleteConfirm ? (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex flex-col gap-3">
+                <p className="text-sm text-red-300 font-semibold">⚠️ Confirmar eliminación de TODOS los datos</p>
+                <p className="text-[11px] text-red-200/70">
+                  Esta acción eliminará permanentemente todos los registros de la base de datos. No se puede deshacer.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDeleteAllData}
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors"
+                  >
+                    Sí, eliminar todo
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="flex-1 bg-slate-600 hover:bg-slate-700 text-white text-sm font-semibold px-3 py-2 rounded-lg transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex items-center justify-center gap-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-300 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Limpiar toda la base de datos
+              </button>
+            )}
           </section>
         </div>
 
@@ -672,6 +731,62 @@ export default function ComandosPage() {
                 </div>
               );
             })}
+          </section>
+        )}
+
+        {/* ── Historial de cargas ─────────────────────────────── */}
+        {allRecords.length > 0 && (
+          <section className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between" style={{ background: "#0d1b35" }}>
+              <div className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-blue-300" />
+                <h2 className="text-sm font-semibold text-white">Historial de cargas</h2>
+              </div>
+              <span className="text-[11px] text-slate-500">{allRecords.length} registros totales</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-white/10" style={{ background: "#0d1b35" }}>
+                    <th className="px-4 py-2 text-left text-slate-500 font-medium">Fecha</th>
+                    <th className="px-4 py-2 text-left text-slate-500 font-medium">Mes</th>
+                    <th className="px-4 py-2 text-left text-slate-500 font-medium">Tipo</th>
+                    <th className="px-4 py-2 text-right text-slate-500 font-medium">Colón</th>
+                    <th className="px-4 py-2 text-right text-slate-500 font-medium">Serrano</th>
+                    <th className="px-4 py-2 text-right text-slate-500 font-medium">Perón</th>
+                    <th className="px-4 py-2 text-right text-slate-500 font-medium">San Martín</th>
+                    <th className="px-4 py-2 text-right text-slate-500 font-medium">Virtual</th>
+                    <th className="px-4 py-2 text-right font-semibold text-slate-400">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allRecords.slice(0, 50).map((r, i) => (
+                    <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                      <td className="px-4 py-1.5 text-slate-300 font-mono">{r.fecha}</td>
+                      <td className="px-4 py-1.5 text-slate-300">{MONTHS[r.month - 1]} {r.year}</td>
+                      <td className="px-4 py-1.5">
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${TIPO_COLORS[r.tipo]}`}>
+                          {r.tipo}
+                        </span>
+                      </td>
+                      <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.colon, r.tipo)}</td>
+                      <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.serrano, r.tipo)}</td>
+                      <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.peron, r.tipo)}</td>
+                      <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.san_martin, r.tipo)}</td>
+                      <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.virtual, r.tipo)}</td>
+                      <td className="px-4 py-1.5 text-right font-semibold text-white">{fmtNum(r.total, r.tipo)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {allRecords.length > 50 && (
+              <div className="px-5 py-2 border-t border-white/10 text-center text-[11px] text-slate-500">
+                Mostrando 50 de {allRecords.length} registros
+              </div>
+            )}
           </section>
         )}
 
