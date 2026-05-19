@@ -2,6 +2,8 @@
 // SUPABASE STORE — Reemplazo del store local con Supabase
 // ============================================================
 
+'use server';
+
 import { supabase, type DailyRecord, type AppConfig } from './supabase';
 import type { TipoMetrica, BranchKey } from './report-data';
 

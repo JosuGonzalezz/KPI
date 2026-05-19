@@ -38,15 +38,14 @@ export function ExportPDF({
       // Reemplazar variables CSS y colores lab() con valores hexadecimales
       const allElements = [clone, ...clone.querySelectorAll("*")] as HTMLElement[];
       allElements.forEach((el) => {
-        const computed = window.getComputedStyle(el);
-        const bgColor = computed.backgroundColor;
+        // Limpiar estilos problemáticos
+        el.style.backgroundColor = "#ffffff";
+        el.style.color = "#000000";
         
-        // Reemplazar colores problematicos
-        if (bgColor && bgColor.includes("lab")) {
-          el.style.backgroundColor = "#ffffff";
-        }
-        if (bgColor && bgColor.includes("transparent")) {
-          el.style.backgroundColor = "transparent";
+        // Remover atributos de estilo que puedan causar problemas
+        const style = el.getAttribute("style") || "";
+        if (style.includes("lab(")) {
+          el.setAttribute("style", style.replace(/lab\([^)]*\)/g, "#ffffff"));
         }
       });
 
