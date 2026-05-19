@@ -476,26 +476,32 @@ export default function ComandosPage() {
           </section>
 
           {/* Cargar datos de meses cerrados */}
-          <section className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col gap-3 col-span-2">
+          <section className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col gap-4 col-span-2">
             <div className="flex items-center gap-2">
               <Database className="w-4 h-4 text-green-300" />
               <h2 className="text-sm font-semibold text-white">Cargar datos de meses cerrados</h2>
               <span className="ml-auto text-[10px] text-slate-500">Para calcular objetivos</span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Cargá los datos del mes anterior y del mismo mes del año anterior para que el sistema calcule los objetivos automáticamente.
+              Descargá la plantilla, completá con tus datos y cargá el archivo. El sistema calculará los objetivos automáticamente.
             </p>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               {/* Mes anterior */}
-              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                <p className="text-xs font-semibold text-slate-300 mb-1">Mes anterior</p>
-                <p className="text-[10px] text-slate-500 mb-3">
+              <div className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/30 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2 h-2 rounded-full bg-blue-400" />
+                  <p className="text-xs font-semibold text-blue-300 uppercase tracking-wider">Mes anterior</p>
+                </div>
+                <p className="text-sm text-white font-semibold mb-1">
                   {(() => {
                     const prevMonth = config.currentMonth === 1 ? 12 : config.currentMonth - 1;
                     const prevYear = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
                     return `${MONTHS[prevMonth - 1]} ${prevYear}`;
                   })()}
+                </p>
+                <p className="text-[10px] text-slate-400 mb-3">
+                  Completa los datos de este período para calcular objetivos
                 </p>
                 <div className="flex flex-col gap-2">
                   <button
@@ -510,25 +516,32 @@ export default function ComandosPage() {
                       a.click();
                       document.body.removeChild(a);
                     }}
-                    className="w-full text-sm bg-slate-600 hover:bg-slate-700 text-white font-semibold px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    className="w-full text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
-                    <FileText className="w-3.5 h-3.5" />
+                    <FileText className="w-4 h-4" />
                     Descargar plantilla
                   </button>
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-2 rounded-lg transition-colors"
+                    className="w-full text-sm bg-slate-600 hover:bg-slate-700 text-white font-semibold px-3 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
+                    <Upload className="w-4 h-4" />
                     Cargar CSV
                   </button>
                 </div>
               </div>
 
               {/* Mismo mes año anterior */}
-              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-                <p className="text-xs font-semibold text-slate-300 mb-1">Mismo mes año anterior</p>
-                <p className="text-[10px] text-slate-500 mb-3">
+              <div className="bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/30 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-2 h-2 rounded-full bg-green-400" />
+                  <p className="text-xs font-semibold text-green-300 uppercase tracking-wider">Mismo mes año anterior</p>
+                </div>
+                <p className="text-sm text-white font-semibold mb-1">
                   {`${MONTHS[config.currentMonth - 1]} ${config.currentYear - 1}`}
+                </p>
+                <p className="text-[10px] text-slate-400 mb-3">
+                  Completa los datos de este período para calcular objetivos
                 </p>
                 <div className="flex flex-col gap-2">
                   <button
@@ -542,19 +555,27 @@ export default function ComandosPage() {
                       a.click();
                       document.body.removeChild(a);
                     }}
-                    className="w-full text-sm bg-slate-600 hover:bg-slate-700 text-white font-semibold px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    className="w-full text-sm bg-green-600 hover:bg-green-700 text-white font-semibold px-3 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
-                    <FileText className="w-3.5 h-3.5" />
+                    <FileText className="w-4 h-4" />
                     Descargar plantilla
                   </button>
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full text-sm bg-green-600 hover:bg-green-700 text-white font-semibold px-3 py-2 rounded-lg transition-colors"
+                    className="w-full text-sm bg-slate-600 hover:bg-slate-700 text-white font-semibold px-3 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
+                    <Upload className="w-4 h-4" />
                     Cargar CSV
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* Info box */}
+            <div className="bg-slate-500/10 border border-slate-500/30 rounded-lg p-3">
+              <p className="text-[10px] text-slate-300">
+                <span className="font-semibold">💡 Tip:</span> Descargá la plantilla, abrila en Excel, completá los datos y cargá el archivo. El sistema validará automáticamente.
+              </p>
             </div>
           </section>
 

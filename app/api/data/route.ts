@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     // Opción B: viene CSV crudo
     if (body.csvText) {
-      const { records, errors } = parseCSV(body.csvText);
+      const { records, errors } = await parseCSV(body.csvText);
       if (records.length === 0) {
         return NextResponse.json({ ok: false, errors }, { status: 400 });
       }
@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: false, error: "Se requiere csvText o records" }, { status: 400 });
   } catch (e) {
+    console.error("Error in POST /api/data:", e);
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
   }
 }
