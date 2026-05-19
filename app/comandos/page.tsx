@@ -70,6 +70,14 @@ export default function ComandosPage() {
   const [allRecords, setAllRecords] = useState<DailyRecord[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // ── Monthly totals upload state ────────────────────────────
+  const [monthlyFile, setMonthlyFile] = useState<File | null>(null);
+  const [monthlyUploading, setMonthlyUploading] = useState(false);
+  const [monthlyResult, setMonthlyResult] = useState<{
+    ok: boolean; inserted?: number; errors?: string[];
+  } | null>(null);
+  const [uploadingFor, setUploadingFor] = useState<'prev' | 'same' | null>(null);
+
   // ── Load config on mount ───────────────────────────────────
   useEffect(() => {
     fetch("/api/config")
@@ -297,6 +305,49 @@ export default function ComandosPage() {
     }
   }
 
+  // ── Upload monthly totals ──────────────────────────────────
+  async function handleUploadMonthlyTotals(type: 'prev' | 'same') {
+    if (!monthlyFile) return;
+    
+    setMonthlyUploading(true);
+    setUploadingFor(type);
+    
+    try {
+      const text = await monthlyFile.text();
+      
+      // Determinar año y mes según el tipo
+      let year: number, month: number;
+      if (type === 'prev') {
+        const prevMonth = config.currentMonth === 1 ? 12 : config.currentMonth - 1;
+        const prevYear = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
+        year = prevYear;
+        month = prevMonth;
+      } else {
+        year = config.currentYear - 1;
+        month = config.currentMonth;
+      }
+      
+      const res = await fetch("/api/monthly-totals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csvText: text, year, month }),
+      });
+      
+      const data = await res.json();
+      setMonthlyResult(data);
+      
+      if (data.ok) {
+        setMonthlyFile(null);
+        loadStoreStats();
+      }
+    } catch (e) {
+      setMonthlyResult({ ok: false, errors: [String(e)] });
+    }
+    
+    setMonthlyUploading(false);
+    setUploadingFor(null);
+  }
+
   // ── Preview agrupado ───────────────────────────────────────
   const previewByTipo = (tipo: TipoMetrica) => preview.filter(r => r.tipo === tipo);
   const previewMonths = [...new Set(preview.map(r => `${MONTHS[r.month - 1]} ${r.year}`))];
@@ -479,11 +530,11 @@ export default function ComandosPage() {
           <section className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col gap-4 col-span-2">
             <div className="flex items-center gap-2">
               <Database className="w-4 h-4 text-green-300" />
-              <h2 className="text-sm font-semibold text-white">Cargar datos de meses cerrados</h2>
-              <span className="ml-auto text-[10px] text-slate-500">Para calcular objetivos</span>
+              <h2 className="text-sm font-semibold text-white">Cargar totales de meses cerrados</h2>
+              <span className="ml-auto text-[10px] text-slate-500">Solo 3 filas por mes</span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Descargá la plantilla, completá con tus datos y cargá el archivo. El sistema calculará los objetivos automáticamente.
+              Descargá la plantilla, completá los 3 totales (Facturacion, Clientes, Productos) y cargá el archivo.
             </p>
 
             <div className="grid grid-cols-2 gap-4">
@@ -501,17 +552,18 @@ export default function ComandosPage() {
                   })()}
                 </p>
                 <p className="text-[10px] text-slate-400 mb-3">
-                  Completa los datos de este período para calcular objetivos
+                  Totales del mes completo (3 filas)
                 </p>
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={() => {
                       const prevMonth = config.currentMonth === 1 ? 12 : config.currentMonth - 1;
                       const prevYear = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
-                      const url = `/api/export-template?year=${prevYear}&month=${prevMonth}`;
+                      const monthName = MONTHS[prevMonth - 1];
+                      const url = `/api/export-monthly-template?year=${prevYear}&month=${prevMonth}&monthName=${monthName}`;
                       const a = document.createElement("a");
                       a.href = url;
-                      a.download = `Plantilla_${MONTHS[prevMonth - 1]}_${prevYear}.csv`;
+                      a.download = `Totales_${monthName}_${prevYear}.csv`;
                       document.body.appendChild(a);
                       a.click();
                       document.body.removeChild(a);
@@ -521,13 +573,37 @@ export default function ComandosPage() {
                     <FileText className="w-4 h-4" />
                     Descargar plantilla
                   </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full text-sm bg-slate-600 hover:bg-slate-700 text-white font-semibold px-3 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Cargar CSV
-                  </button>
+                  <label className="w-full">
+                    <input
+                      type="file"
+                      accept=".csv,.tsv,.txt"
+                      className="hidden"
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f) {
+                          setMonthlyFile(f);
+                          setMonthlyResult(null);
+                        }
+                      }}
+                    />
+                    <div className="w-full text-sm bg-slate-600 hover:bg-slate-700 text-white font-semibold px-3 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                      <Upload className="w-4 h-4" />
+                      {monthlyFile && uploadingFor === 'prev' ? monthlyFile.name : 'Seleccionar CSV'}
+                    </div>
+                  </label>
+                  {monthlyFile && (
+                    <button
+                      onClick={() => handleUploadMonthlyTotals('prev')}
+                      disabled={monthlyUploading}
+                      className="w-full text-sm bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold px-3 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      {monthlyUploading && uploadingFor === 'prev' ? (
+                        <><RefreshCw className="w-4 h-4 animate-spin" /> Cargando...</>
+                      ) : (
+                        <><CheckCircle2 className="w-4 h-4" /> Confirmar carga</>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -541,16 +617,17 @@ export default function ComandosPage() {
                   {`${MONTHS[config.currentMonth - 1]} ${config.currentYear - 1}`}
                 </p>
                 <p className="text-[10px] text-slate-400 mb-3">
-                  Completa los datos de este período para calcular objetivos
+                  Totales del mes completo (3 filas)
                 </p>
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={() => {
                       const lastYear = config.currentYear - 1;
-                      const url = `/api/export-template?year=${lastYear}&month=${config.currentMonth}`;
+                      const monthName = MONTHS[config.currentMonth - 1];
+                      const url = `/api/export-monthly-template?year=${lastYear}&month=${config.currentMonth}&monthName=${monthName}`;
                       const a = document.createElement("a");
                       a.href = url;
-                      a.download = `Plantilla_${MONTHS[config.currentMonth - 1]}_${lastYear}.csv`;
+                      a.download = `Totales_${monthName}_${lastYear}.csv`;
                       document.body.appendChild(a);
                       a.click();
                       document.body.removeChild(a);
@@ -560,21 +637,67 @@ export default function ComandosPage() {
                     <FileText className="w-4 h-4" />
                     Descargar plantilla
                   </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full text-sm bg-slate-600 hover:bg-slate-700 text-white font-semibold px-3 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Cargar CSV
-                  </button>
+                  <label className="w-full">
+                    <input
+                      type="file"
+                      accept=".csv,.tsv,.txt"
+                      className="hidden"
+                      onChange={e => {
+                        const f = e.target.files?.[0];
+                        if (f) {
+                          setMonthlyFile(f);
+                          setMonthlyResult(null);
+                        }
+                      }}
+                    />
+                    <div className="w-full text-sm bg-slate-600 hover:bg-slate-700 text-white font-semibold px-3 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                      <Upload className="w-4 h-4" />
+                      {monthlyFile && uploadingFor === 'same' ? monthlyFile.name : 'Seleccionar CSV'}
+                    </div>
+                  </label>
+                  {monthlyFile && (
+                    <button
+                      onClick={() => handleUploadMonthlyTotals('same')}
+                      disabled={monthlyUploading}
+                      className="w-full text-sm bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold px-3 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      {monthlyUploading && uploadingFor === 'same' ? (
+                        <><RefreshCw className="w-4 h-4 animate-spin" /> Cargando...</>
+                      ) : (
+                        <><CheckCircle2 className="w-4 h-4" /> Confirmar carga</>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
 
+            {/* Upload result */}
+            {monthlyResult && (
+              <div className={`border rounded-lg p-3 flex items-start gap-2 ${monthlyResult.ok ? "bg-green-500/10 border-green-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+                {monthlyResult.ok
+                  ? <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
+                  : <AlertCircle  className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                }
+                <div>
+                  {monthlyResult.ok ? (
+                    <p className="text-sm text-green-300 font-semibold">
+                      ✅ Totales cargados exitosamente ({monthlyResult.inserted} registros)
+                    </p>
+                  ) : (
+                    <p className="text-sm text-red-300 font-semibold">❌ Error al cargar</p>
+                  )}
+                  {monthlyResult.errors && monthlyResult.errors.length > 0 && (
+                    <p className="text-[11px] text-slate-400 mt-0.5">{monthlyResult.errors.join(" · ")}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Info box */}
             <div className="bg-slate-500/10 border border-slate-500/30 rounded-lg p-3">
               <p className="text-[10px] text-slate-300">
-                <span className="font-semibold">💡 Tip:</span> Descargá la plantilla, abrila en Excel, completá los datos y cargá el archivo. El sistema validará automáticamente.
+                <span className="font-semibold">💡 Formato:</span> Fecha (nombre del mes) | Colón | Serrano | Perón | San Martín | Virtual | Total | Tipo (Facturacion/Clientes/Productos)
               </p>
             </div>
           </section>
