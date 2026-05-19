@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getConfig, getRecordsByYearMonth, derivePeriods } from "@/lib/supabase-store";
+import { getConfig, getRecordsByYearMonth, derivePeriods } from "@/lib/supabase-server";
 import type { DailyRecord } from "@/lib/supabase";
 
 type TipoMetrica = 'Clientes' | 'Producto' | 'Facturacion';

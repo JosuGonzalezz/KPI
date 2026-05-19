@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllRecords, getRecordsByYearMonth, upsertRecords, deleteByYearMonth, parseCSV } from "@/lib/supabase-store";
+import { getAllRecords, getRecordsByYearMonth, upsertRecords, deleteByYearMonth, parseCSV } from "@/lib/supabase-server";
 
 /** GET /api/data?year=2026&month=5  — devuelve registros */
 export async function GET(req: NextRequest) {

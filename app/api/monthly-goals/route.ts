@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { calculateMonthlyGoals, getRecordsByYearMonth, getMonthlyTotals, derivePeriods } from "@/lib/supabase-store";
+import { calculateMonthlyGoals, getRecordsByYearMonth, getMonthlyTotals, derivePeriods } from "@/lib/supabase-server";
 
 /**
  * POST /api/monthly-goals

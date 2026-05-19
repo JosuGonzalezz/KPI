@@ -1,21 +1,13 @@
 // ============================================================
-// SUPABASE STORE — Reemplazo del store local con Supabase
+// SUPABASE SERVER — Funciones async para usar en rutas API
 // ============================================================
 
-import { supabase, type DailyRecord, type AppConfig } from './supabase';
-import type { TipoMetrica, BranchKey } from './report-data';
-
-// ── Helpers de formateo ──────────────────────────────────────
-function formatBranchKey(key: string): string {
-  return key.replace(/([A-Z])/g, '_$1').toLowerCase();
-}
+import { supabase } from './supabase';
+import type { DailyRecord, AppConfig } from './supabase';
 
 // ── Config ────────────────────────────────────────────────────
 
-/** Lee la configuración activa del reporte */
 export async function getConfig(): Promise<AppConfig> {
-  'use server';
-  
   const { data, error } = await supabase
     .from('config')
     .select('*')
@@ -23,7 +15,6 @@ export async function getConfig(): Promise<AppConfig> {
 
   if (error) {
     console.error('Error fetching config:', error);
-    // Fallback a valores por defecto si no hay datos
     return {
       id: 1,
       current_year: 2026,
@@ -42,12 +33,8 @@ export async function getConfig(): Promise<AppConfig> {
   };
 }
 
-/** Guarda la configuración activa */
 export async function saveConfig(config: Partial<AppConfig>): Promise<AppConfig> {
-  'use server';
-  
-  // Intentar actualizar primero
-  const { data: existing, error: fetchError } = await supabase
+  const { data: existing } = await supabase
     .from('config')
     .select('id')
     .single();
@@ -66,7 +53,6 @@ export async function saveConfig(config: Partial<AppConfig>): Promise<AppConfig>
     if (error) throw error;
     return data;
   } else {
-    // Si no existe, crear nuevo registro
     const { data, error } = await supabase
       .from('config')
       .insert({
@@ -83,10 +69,7 @@ export async function saveConfig(config: Partial<AppConfig>): Promise<AppConfig>
 
 // ── Records ───────────────────────────────────────────────────
 
-/** Lee todos los registros del store */
 export async function getAllRecords(): Promise<DailyRecord[]> {
-  'use server';
-  
   const { data, error } = await supabase
     .from('daily_records')
     .select('*')
@@ -100,13 +83,10 @@ export async function getAllRecords(): Promise<DailyRecord[]> {
   return data;
 }
 
-/** Devuelve registros filtrados por año y mes */
 export async function getRecordsByYearMonth(
   year: number,
   month: number
 ): Promise<DailyRecord[]> {
-  'use server';
-  
   const { data, error } = await supabase
     .from('daily_records')
     .select('*')
@@ -122,14 +102,9 @@ export async function getRecordsByYearMonth(
   return data;
 }
 
-/**
- * Inserta o reemplaza registros. La clave única es (fecha + tipo).
- */
 export async function upsertRecords(
   incoming: DailyRecord[]
 ): Promise<{ inserted: number; updated: number }> {
-  'use server';
-  
   const all = await getAllRecords();
   const key = (r: DailyRecord) => `${r.fecha}::${r.tipo}`;
   const map = new Map<string, DailyRecord>(
@@ -148,11 +123,7 @@ export async function upsertRecords(
     map.set(key(r), r);
   }
 
-  // Convertir a array y upsert
-  const recordsToUpsert = Array.from(map.values()).map((r) => ({
-    ...r,
-    san_martin: r.sanMartin, // Renombrar para Supabase
-  }));
+  const recordsToUpsert = Array.from(map.values());
 
   const { error } = await supabase
     .from('daily_records')
@@ -162,7 +133,6 @@ export async function upsertRecords(
 
   if (error) {
     console.error('Error upserting records:', error);
-    // Fallback: insert individual
     for (const r of recordsToUpsert) {
       await supabase.from('daily_records').upsert(r, {
         onConflict: 'fecha,tipo',
@@ -173,13 +143,10 @@ export async function upsertRecords(
   return { inserted, updated };
 }
 
-/** Elimina todos los registros de un año+mes */
 export async function deleteByYearMonth(
   year: number,
   month: number
 ): Promise<number> {
-  'use server';
-  
   const { error } = await supabase
     .from('daily_records')
     .delete()
@@ -194,6 +161,133 @@ export async function deleteByYearMonth(
   return 1;
 }
 
+// ── Cálculos de Objetivos del Mes ────────────────────────────
+
+export type MonthlyTotals = {
+  facturacion: number;
+  clientes: number;
+  producto: number;
+  byBranch: {
+    colon: { facturacion: number; clientes: number; producto: number };
+    serrano: { facturacion: number; clientes: number; producto: number };
+    peron: { facturacion: number; clientes: number; producto: number };
+    san_martin: { facturacion: number; clientes: number; producto: number };
+    virtual: { facturacion: number; clientes: number; producto: number };
+  };
+};
+
+export async function getMonthlyTotals(
+  year: number,
+  month: number
+): Promise<MonthlyTotals> {
+  const records = await getRecordsByYearMonth(year, month);
+
+  const totals: MonthlyTotals = {
+    facturacion: 0,
+    clientes: 0,
+    producto: 0,
+    byBranch: {
+      colon: { facturacion: 0, clientes: 0, producto: 0 },
+      serrano: { facturacion: 0, clientes: 0, producto: 0 },
+      peron: { facturacion: 0, clientes: 0, producto: 0 },
+      san_martin: { facturacion: 0, clientes: 0, producto: 0 },
+      virtual: { facturacion: 0, clientes: 0, producto: 0 },
+    },
+  };
+
+  records.forEach((record) => {
+    const tipo = record.tipo as 'Facturacion' | 'Clientes' | 'Producto';
+    const tipoKey = tipo === 'Facturacion' ? 'facturacion' : tipo === 'Clientes' ? 'clientes' : 'producto';
+
+    totals[tipoKey] += record.total;
+
+    const branches = [
+      { key: 'colon' as const, value: record.colon },
+      { key: 'serrano' as const, value: record.serrano },
+      { key: 'peron' as const, value: record.peron },
+      { key: 'san_martin' as const, value: record.san_martin },
+      { key: 'virtual' as const, value: record.virtual },
+    ];
+
+    branches.forEach(({ key, value }) => {
+      if (value !== null) {
+        totals.byBranch[key][tipoKey] += value;
+      }
+    });
+  });
+
+  return totals;
+}
+
+export function derivePeriods(currentYear: number, currentMonth: number) {
+  const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+  const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+
+  return {
+    mesActual: { year: currentYear, month: currentMonth },
+    mesAnterior: { year: prevYear, month: prevMonth },
+    mismoMesAAnt: { year: currentYear - 1, month: currentMonth },
+  };
+}
+
+export async function calculateMonthlyGoals(
+  currentYear: number,
+  currentMonth: number,
+  currentDay: number,
+  daysInCurrentMonth: number
+) {
+  const percentageTranscurred = (currentDay / daysInCurrentMonth) * 100;
+  const periods = derivePeriods(currentYear, currentMonth);
+
+  const [prevMonthTotals, sameMonthLastYearTotals] = await Promise.all([
+    getMonthlyTotals(periods.mesAnterior.year, periods.mesAnterior.month),
+    getMonthlyTotals(periods.mismoMesAAnt.year, periods.mismoMesAAnt.month),
+  ]);
+
+  const applyPercentage = (totals: MonthlyTotals, percentage: number): MonthlyTotals => {
+    const factor = percentage / 100;
+    return {
+      facturacion: Math.round(totals.facturacion * factor),
+      clientes: Math.round(totals.clientes * factor),
+      producto: Math.round(totals.producto * factor),
+      byBranch: {
+        colon: {
+          facturacion: Math.round(totals.byBranch.colon.facturacion * factor),
+          clientes: Math.round(totals.byBranch.colon.clientes * factor),
+          producto: Math.round(totals.byBranch.colon.producto * factor),
+        },
+        serrano: {
+          facturacion: Math.round(totals.byBranch.serrano.facturacion * factor),
+          clientes: Math.round(totals.byBranch.serrano.clientes * factor),
+          producto: Math.round(totals.byBranch.serrano.producto * factor),
+        },
+        peron: {
+          facturacion: Math.round(totals.byBranch.peron.facturacion * factor),
+          clientes: Math.round(totals.byBranch.peron.clientes * factor),
+          producto: Math.round(totals.byBranch.peron.producto * factor),
+        },
+        san_martin: {
+          facturacion: Math.round(totals.byBranch.san_martin.facturacion * factor),
+          clientes: Math.round(totals.byBranch.san_martin.clientes * factor),
+          producto: Math.round(totals.byBranch.san_martin.producto * factor),
+        },
+        virtual: {
+          facturacion: Math.round(totals.byBranch.virtual.facturacion * factor),
+          clientes: Math.round(totals.byBranch.virtual.clientes * factor),
+          producto: Math.round(totals.byBranch.virtual.producto * factor),
+        },
+      },
+    };
+  };
+
+  return {
+    percentageTranscurred,
+    prevMonthGoals: applyPercentage(prevMonthTotals, percentageTranscurred),
+    sameMonthLastYearGoals: applyPercentage(sameMonthLastYearTotals, percentageTranscurred),
+  };
+}
+
+
 // ── CSV Parser ────────────────────────────────────────────────
 
 /**
@@ -201,7 +295,6 @@ export async function deleteByYearMonth(
  * Fecha | Colón | Serrano | Perón | San Martín | Virtual | Total | Tipo
  */
 export async function parseCSV(raw: string): Promise<{ records: DailyRecord[]; errors: string[] }> {
-  'use server';
   const lines  = raw.replace(/^\uFEFF/, "").trim().split(/\r?\n/);
   const errors: string[] = [];
   const records: DailyRecord[] = [];
@@ -338,174 +431,4 @@ export async function parseCSV(raw: string): Promise<{ records: DailyRecord[]; e
   }
 
   return { records, errors };
-}
-
-// ── Derivación automática de períodos ────────────────────────
-
-/**
- * Dado el mes en curso devuelve:
- * - mesActual:    { year, month }
- * - mesAnterior:  { year, month }  (mes anterior)
- * - mismoMesAAnt: { year, month }  (mismo mes año anterior)
- */
-export async function derivePeriods(
-  currentYear: number,
-  currentMonth: number
-) {
-  'use server';
-  const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-  const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
-
-  return {
-    mesActual: { year: currentYear, month: currentMonth },
-    mesAnterior: { year: prevYear, month: prevMonth },
-    mismoMesAAnt: { year: currentYear - 1, month: currentMonth },
-  };
-}
-
-// ── Cálculos de Objetivos del Mes ────────────────────────────
-
-export type MonthlyTotals = {
-  facturacion: number;
-  clientes: number;
-  producto: number;
-  byBranch: {
-    colon: { facturacion: number; clientes: number; producto: number };
-    serrano: { facturacion: number; clientes: number; producto: number };
-    peron: { facturacion: number; clientes: number; producto: number };
-    san_martin: { facturacion: number; clientes: number; producto: number };
-    virtual: { facturacion: number; clientes: number; producto: number };
-  };
-};
-
-/**
- * Calcula los totales de un mes completo por tipo de métrica y sucursal
- */
-export async function getMonthlyTotals(
-  year: number,
-  month: number
-): Promise<MonthlyTotals> {
-  'use server';
-
-  const records = await getRecordsByYearMonth(year, month);
-
-  const totals: MonthlyTotals = {
-    facturacion: 0,
-    clientes: 0,
-    producto: 0,
-    byBranch: {
-      colon: { facturacion: 0, clientes: 0, producto: 0 },
-      serrano: { facturacion: 0, clientes: 0, producto: 0 },
-      peron: { facturacion: 0, clientes: 0, producto: 0 },
-      san_martin: { facturacion: 0, clientes: 0, producto: 0 },
-      virtual: { facturacion: 0, clientes: 0, producto: 0 },
-    },
-  };
-
-  records.forEach((record) => {
-    const tipo = record.tipo as 'Facturacion' | 'Clientes' | 'Producto';
-    const tipoKey = tipo === 'Facturacion' ? 'facturacion' : tipo === 'Clientes' ? 'clientes' : 'producto';
-
-    // Totales generales
-    totals[tipoKey] += record.total;
-
-    // Totales por sucursal
-    const branches = [
-      { key: 'colon' as const, value: record.colon },
-      { key: 'serrano' as const, value: record.serrano },
-      { key: 'peron' as const, value: record.peron },
-      { key: 'san_martin' as const, value: record.san_martin },
-      { key: 'virtual' as const, value: record.virtual },
-    ];
-
-    branches.forEach(({ key, value }) => {
-      if (value !== null) {
-        totals.byBranch[key][tipoKey] += value;
-      }
-    });
-  });
-
-  return totals;
-}
-
-/**
- * Calcula los objetivos del mes basado en porcentaje transcurrido
- */
-export async function calculateMonthlyGoals(
-  currentYear: number,
-  currentMonth: number,
-  currentDay: number,
-  daysInCurrentMonth: number
-) {
-  'use server';
-
-  // Calcular porcentaje transcurrido
-  const percentageTranscurred = (currentDay / daysInCurrentMonth) * 100;
-
-  // Obtener períodos
-  const periods = derivePeriods(currentYear, currentMonth);
-
-  // Obtener totales de meses de comparación
-  const [prevMonthTotals, sameMonthLastYearTotals] = await Promise.all([
-    getMonthlyTotals(periods.mesAnterior.year, periods.mesAnterior.month),
-    getMonthlyTotals(periods.mismoMesAAnt.year, periods.mismoMesAAnt.month),
-  ]);
-
-  // Aplicar porcentaje a los totales
-  const applyPercentage = (totals: MonthlyTotals, percentage: number): MonthlyTotals => {
-    const factor = percentage / 100;
-    return {
-      facturacion: Math.round(totals.facturacion * factor),
-      clientes: Math.round(totals.clientes * factor),
-      producto: Math.round(totals.producto * factor),
-      byBranch: {
-        colon: {
-          facturacion: Math.round(totals.byBranch.colon.facturacion * factor),
-          clientes: Math.round(totals.byBranch.colon.clientes * factor),
-          producto: Math.round(totals.byBranch.colon.producto * factor),
-        },
-        serrano: {
-          facturacion: Math.round(totals.byBranch.serrano.facturacion * factor),
-          clientes: Math.round(totals.byBranch.serrano.clientes * factor),
-          producto: Math.round(totals.byBranch.serrano.producto * factor),
-        },
-        peron: {
-          facturacion: Math.round(totals.byBranch.peron.facturacion * factor),
-          clientes: Math.round(totals.byBranch.peron.clientes * factor),
-          producto: Math.round(totals.byBranch.peron.producto * factor),
-        },
-        san_martin: {
-          facturacion: Math.round(totals.byBranch.san_martin.facturacion * factor),
-          clientes: Math.round(totals.byBranch.san_martin.clientes * factor),
-          producto: Math.round(totals.byBranch.san_martin.producto * factor),
-        },
-        virtual: {
-          facturacion: Math.round(totals.byBranch.virtual.facturacion * factor),
-          clientes: Math.round(totals.byBranch.virtual.clientes * factor),
-          producto: Math.round(totals.byBranch.virtual.producto * factor),
-        },
-      },
-    };
-  };
-
-  return {
-    percentageTranscurred,
-    prevMonthGoals: applyPercentage(prevMonthTotals, percentageTranscurred),
-    sameMonthLastYearGoals: applyPercentage(sameMonthLastYearTotals, percentageTranscurred),
-  };
-}
-
-/**
- * Guarda totales mensuales personalizados (para carga manual)
- */
-export async function saveMonthlyTotals(
-  year: number,
-  month: number,
-  totals: MonthlyTotals
-): Promise<void> {
-  'use server';
-
-  // Guardar en una tabla de totales mensuales (si existe)
-  // Por ahora, solo retornamos los datos
-  console.log(`Saved monthly totals for ${month}/${year}:`, totals);
 }

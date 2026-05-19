@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getConfig, saveConfig } from "@/lib/supabase-store";
+import { getConfig, saveConfig } from "@/lib/supabase-server";
 
 /** GET /api/config */
 export async function GET() {
