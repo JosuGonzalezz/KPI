@@ -362,16 +362,22 @@ export default function ComandosPage() {
 
             {/* Períodos derivados */}
             <div className="grid grid-cols-3 gap-2 mt-1">
-              {[
-                { label: "Mes en curso",       val: `${MONTHS[config.currentMonth - 1]} ${config.currentYear}`, color: "border-blue-500/40 bg-blue-500/10 text-blue-300" },
-                { label: "Mes anterior",        val: `${MONTHS[config.currentMonth === 1 ? 11 : config.currentMonth - 2]} ${config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear}`, color: "border-slate-500/40 bg-slate-500/10 text-slate-300" },
-                { label: "Mismo mes año ant.",  val: `${MONTHS[config.currentMonth - 1]} ${config.currentYear - 1}`, color: "border-slate-500/40 bg-slate-500/10 text-slate-300" },
-              ].map(({ label, val, color }) => (
-                <div key={label} className={`border rounded-lg p-2.5 ${color}`}>
-                  <p className="text-[9px] uppercase tracking-wider opacity-70">{label}</p>
-                  <p className="text-xs font-semibold mt-0.5">{val}</p>
-                </div>
-              ))}
+              {(() => {
+                const prevMonth = config.currentMonth === 1 ? 12 : config.currentMonth - 1;
+                const prevYear = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
+                const lastYear = config.currentYear - 1;
+                
+                return [
+                  { label: "Mes en curso",       val: `${MONTHS[config.currentMonth - 1]} ${config.currentYear}`, color: "border-blue-500/40 bg-blue-500/10 text-blue-300" },
+                  { label: "Mes anterior",        val: `${MONTHS[prevMonth - 1]} ${prevYear}`, color: "border-slate-500/40 bg-slate-500/10 text-slate-300" },
+                  { label: "Mismo mes año ant.",  val: `${MONTHS[config.currentMonth - 1]} ${lastYear}`, color: "border-slate-500/40 bg-slate-500/10 text-slate-300" },
+                ].map(({ label, val, color }) => (
+                  <div key={label} className={`border rounded-lg p-2.5 ${color}`}>
+                    <p className="text-[9px] uppercase tracking-wider opacity-70">{label}</p>
+                    <p className="text-xs font-semibold mt-0.5">{val}</p>
+                  </div>
+                ));
+              })()}
             </div>
 
             <button
@@ -447,6 +453,52 @@ export default function ComandosPage() {
                 ))}
               </div>
             )}
+          </section>
+
+          {/* Cargar datos de meses cerrados */}
+          <section className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col gap-3 col-span-2">
+            <div className="flex items-center gap-2">
+              <Database className="w-4 h-4 text-green-300" />
+              <h2 className="text-sm font-semibold text-white">Cargar datos de meses cerrados</h2>
+              <span className="ml-auto text-[10px] text-slate-500">Para calcular objetivos</span>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Cargá los datos del mes anterior y del mismo mes del año anterior para que el sistema calcule los objetivos automáticamente.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              {/* Mes anterior */}
+              <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+                <p className="text-xs font-semibold text-slate-300 mb-2">Mes anterior</p>
+                <p className="text-[10px] text-slate-500 mb-2">
+                  {(() => {
+                    const prevMonth = config.currentMonth === 1 ? 12 : config.currentMonth - 1;
+                    const prevYear = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
+                    return `${MONTHS[prevMonth - 1]} ${prevYear}`;
+                  })()}
+                </p>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-2 rounded-lg transition-colors"
+                >
+                  Cargar CSV
+                </button>
+              </div>
+
+              {/* Mismo mes año anterior */}
+              <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+                <p className="text-xs font-semibold text-slate-300 mb-2">Mismo mes año anterior</p>
+                <p className="text-[10px] text-slate-500 mb-2">
+                  {`${MONTHS[config.currentMonth - 1]} ${config.currentYear - 1}`}
+                </p>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full text-sm bg-green-600 hover:bg-green-700 text-white font-semibold px-3 py-2 rounded-lg transition-colors"
+                >
+                  Cargar CSV
+                </button>
+              </div>
+            </div>
           </section>
         </div>
 
