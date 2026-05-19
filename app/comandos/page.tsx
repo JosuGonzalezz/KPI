@@ -488,35 +488,72 @@ export default function ComandosPage() {
 
             <div className="grid grid-cols-2 gap-3">
               {/* Mes anterior */}
-              <div className="bg-white/5 border border-white/10 rounded-lg p-3">
-                <p className="text-xs font-semibold text-slate-300 mb-2">Mes anterior</p>
-                <p className="text-[10px] text-slate-500 mb-2">
+              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                <p className="text-xs font-semibold text-slate-300 mb-1">Mes anterior</p>
+                <p className="text-[10px] text-slate-500 mb-3">
                   {(() => {
                     const prevMonth = config.currentMonth === 1 ? 12 : config.currentMonth - 1;
                     const prevYear = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
                     return `${MONTHS[prevMonth - 1]} ${prevYear}`;
                   })()}
                 </p>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-2 rounded-lg transition-colors"
-                >
-                  Cargar CSV
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => {
+                      const prevMonth = config.currentMonth === 1 ? 12 : config.currentMonth - 1;
+                      const prevYear = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
+                      const url = `/api/export-template?year=${prevYear}&month=${prevMonth}`;
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `Plantilla_${MONTHS[prevMonth - 1]}_${prevYear}.csv`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                    }}
+                    className="w-full text-sm bg-slate-600 hover:bg-slate-700 text-white font-semibold px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    Descargar plantilla
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-2 rounded-lg transition-colors"
+                  >
+                    Cargar CSV
+                  </button>
+                </div>
               </div>
 
               {/* Mismo mes año anterior */}
-              <div className="bg-white/5 border border-white/10 rounded-lg p-3">
-                <p className="text-xs font-semibold text-slate-300 mb-2">Mismo mes año anterior</p>
-                <p className="text-[10px] text-slate-500 mb-2">
+              <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                <p className="text-xs font-semibold text-slate-300 mb-1">Mismo mes año anterior</p>
+                <p className="text-[10px] text-slate-500 mb-3">
                   {`${MONTHS[config.currentMonth - 1]} ${config.currentYear - 1}`}
                 </p>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full text-sm bg-green-600 hover:bg-green-700 text-white font-semibold px-3 py-2 rounded-lg transition-colors"
-                >
-                  Cargar CSV
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => {
+                      const lastYear = config.currentYear - 1;
+                      const url = `/api/export-template?year=${lastYear}&month=${config.currentMonth}`;
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `Plantilla_${MONTHS[config.currentMonth - 1]}_${lastYear}.csv`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                    }}
+                    className="w-full text-sm bg-slate-600 hover:bg-slate-700 text-white font-semibold px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    Descargar plantilla
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full text-sm bg-green-600 hover:bg-green-700 text-white font-semibold px-3 py-2 rounded-lg transition-colors"
+                  >
+                    Cargar CSV
+                  </button>
+                </div>
               </div>
             </div>
           </section>
