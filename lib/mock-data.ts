@@ -52,8 +52,8 @@ export const kpiMes = {
 export const kpiDia = {
   facturacion:  { value: 202_203_955, vsDiaAnt:  1.82 },  // (202M - 198M) / 198M
   clientes:     { value:  6_070,      vsDiaAnt: 10.55 },  // (6070 - 5491) / 5491
-  ticketProm:   { value:  33_312,     vsDiaAnt: -7.90 },  // ticket promedio día 14
-  changoTot:    { value:  63_289,     vsDiaAnt:  7.32 },  // (63289 - 58972) / 58972
+  ticketProm:   { value:  33_312,     vsDiaAnt: -7.90 },  // ticket promedio día 14 (202203955/6070)
+  changoProm:   { value:  10.43,      vsDiaAnt:  7.32 },  // productos/clientes (63289/6070)
 };
 
 // ── Tabla comparativa de sucursales ─────────────────────────

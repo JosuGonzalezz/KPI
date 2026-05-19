@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
-import { getConfig, getRecordsByYearMonth, derivePeriods } from "@/lib/store";
-import type { DailyRecord, TipoMetrica, BranchKey } from "@/lib/report-data";
+import { getConfig, getRecordsByYearMonth, derivePeriods } from "@/lib/supabase-store";
+import type { DailyRecord } from "@/lib/supabase";
+
+type TipoMetrica = 'Clientes' | 'Producto' | 'Facturacion';
+type BranchKey = 'colon' | 'serrano' | 'peron' | 'san_martin' | 'virtual';
 
 function calcMTD(records: DailyRecord[], tipo: TipoMetrica, upToDay: number): number {
   return records
@@ -9,11 +12,11 @@ function calcMTD(records: DailyRecord[], tipo: TipoMetrica, upToDay: number): nu
 }
 
 function calcMTDByBranch(records: DailyRecord[], tipo: TipoMetrica, upToDay: number): Record<BranchKey, number> {
-  const out: Record<BranchKey, number> = { colon: 0, serrano: 0, peron: 0, sanMartin: 0, virtual: 0 };
+  const out: Record<BranchKey, number> = { colon: 0, serrano: 0, peron: 0, san_martin: 0, virtual: 0 };
   records
     .filter(r => r.tipo === tipo && r.day <= upToDay)
     .forEach(r => {
-      (["colon", "serrano", "peron", "sanMartin", "virtual"] as BranchKey[]).forEach(k => {
+      (["colon", "serrano", "peron", "san_martin", "virtual"] as BranchKey[]).forEach(k => {
         if (r[k] !== null) out[k] += r[k] as number;
       });
     });
@@ -37,13 +40,13 @@ function calcDailySeries(records: DailyRecord[], tipo: TipoMetrica, upToDay: num
  * listo para consumir en el dashboard.
  */
 export async function GET() {
-  const config  = getConfig();
-  const periods = derivePeriods(config.currentYear, config.currentMonth);
-  const upToDay = config.currentDay;
+  const config  = await getConfig();
+  const periods = derivePeriods(config.current_year, config.current_month);
+  const upToDay = config.current_day;
 
-  const recActual   = getRecordsByYearMonth(periods.mesActual.year,    periods.mesActual.month);
-  const recAnterior = getRecordsByYearMonth(periods.mesAnterior.year,  periods.mesAnterior.month);
-  const recAAnt     = getRecordsByYearMonth(periods.mismoMesAAnt.year, periods.mismoMesAAnt.month);
+  const recActual   = await getRecordsByYearMonth(periods.mesActual.year,    periods.mesActual.month);
+  const recAnterior = await getRecordsByYearMonth(periods.mesAnterior.year,  periods.mesAnterior.month);
+  const recAAnt     = await getRecordsByYearMonth(periods.mismoMesAAnt.year, periods.mismoMesAAnt.month);
 
   const hasActual   = recActual.length   > 0;
   const hasAnterior = recAnterior.length > 0;

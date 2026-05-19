@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllRecords, getConfig } from "@/lib/store";
+import { getAllRecords, getConfig } from "@/lib/supabase-store";
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 }
 
 function exportDataTable(records: any[], config: any): NextResponse {
-  const { currentYear, currentMonth, currentDay } = config;
+  const { current_year, current_month, current_day } = config;
 
   // Formatear números
   const fmtNum = (n: number | null, tipo: string): string => {
@@ -79,7 +79,7 @@ function exportDataTable(records: any[], config: any): NextResponse {
       <div class="container">
         <div class="header">
           <h1>Reporte de Datos Cargados</h1>
-          <p>Período: ${currentDay}/${currentMonth}/${currentYear} | Generado: ${new Date().toLocaleString("es-AR")}</p>
+          <p>Período: ${current_day}/${current_month}/${current_year} | Generado: ${new Date().toLocaleString("es-AR")}</p>
         </div>
   `;
 
@@ -117,7 +117,7 @@ function exportDataTable(records: any[], config: any): NextResponse {
           <td class="number">${fmtNum(rec.colon, tipo)}</td>
           <td class="number">${fmtNum(rec.serrano, tipo)}</td>
           <td class="number">${fmtNum(rec.peron, tipo)}</td>
-          <td class="number">${fmtNum(rec.sanmartin, tipo)}</td>
+          <td class="number">${fmtNum(rec.san_martin, tipo)}</td>
           <td class="number">${fmtNum(rec.virtual, tipo)}</td>
           <td class="number"><strong>${fmtNum(rec.total, tipo)}</strong></td>
         </tr>
@@ -134,7 +134,7 @@ function exportDataTable(records: any[], config: any): NextResponse {
   html += `
         <div class="footer">
           <p>Reporte generado automáticamente por Sistema de Control Cadena</p>
-          <p>Base de datos local | Listo para integración con Supabase</p>
+          <p>Base de datos Supabase | Persistencia en la nube</p>
         </div>
       </div>
     </body>

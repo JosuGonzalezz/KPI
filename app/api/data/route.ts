@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllRecords, getRecordsByYearMonth, upsertRecords, deleteByYearMonth, parseCSV } from "@/lib/store";
+import { getAllRecords, getRecordsByYearMonth, upsertRecords, deleteByYearMonth, parseCSV } from "@/lib/supabase-store";
 
 /** GET /api/data?year=2026&month=5  — devuelve registros */
 export async function GET(req: NextRequest) {
@@ -8,11 +8,11 @@ export async function GET(req: NextRequest) {
   const month = searchParams.get("month");
 
   if (year && month) {
-    const records = getRecordsByYearMonth(Number(year), Number(month));
+    const records = await getRecordsByYearMonth(Number(year), Number(month));
     return NextResponse.json({ records, count: records.length });
   }
 
-  const records = getAllRecords();
+  const records = await getAllRecords();
   return NextResponse.json({ records, count: records.length });
 }
 
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     // Opción A: vienen registros ya parseados
     if (body.records && Array.isArray(body.records)) {
-      const result = upsertRecords(body.records as Parameters<typeof upsertRecords>[0]);
+      const result = await upsertRecords(body.records as Parameters<typeof upsertRecords>[0]);
       return NextResponse.json({ ok: true, ...result });
     }
 
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       if (records.length === 0) {
         return NextResponse.json({ ok: false, errors }, { status: 400 });
       }
-      const result = upsertRecords(records);
+      const result = await upsertRecords(records);
       return NextResponse.json({ ok: true, ...result, errors, total: records.length });
     }
 
@@ -51,6 +51,6 @@ export async function DELETE(req: NextRequest) {
   if (!year || !month) {
     return NextResponse.json({ ok: false, error: "year y month requeridos" }, { status: 400 });
   }
-  const deleted = deleteByYearMonth(Number(year), Number(month));
+  const deleted = await deleteByYearMonth(Number(year), Number(month));
   return NextResponse.json({ ok: true, deleted });
 }
