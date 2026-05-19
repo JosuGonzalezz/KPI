@@ -37,6 +37,12 @@ export type AppConfig = {
   current_year: number;
   current_month: number;
   current_day: number;
+  prev_month_year?: number | null;
+  prev_month_month?: number | null;
+  prev_month_name?: string | null;
+  same_month_last_year_year?: number | null;
+  same_month_last_year_month?: number | null;
+  same_month_last_year_name?: string | null;
   updated_at: string;
 };
 
@@ -55,6 +61,12 @@ export async function getConfig(): Promise<AppConfig> {
       current_year: 2026,
       current_month: 5,
       current_day: 14,
+      prev_month_year: null,
+      prev_month_month: null,
+      prev_month_name: null,
+      same_month_last_year_year: null,
+      same_month_last_year_month: null,
+      same_month_last_year_name: null,
       updated_at: new Date().toISOString(),
     };
   }
@@ -64,6 +76,12 @@ export async function getConfig(): Promise<AppConfig> {
     current_year: data.current_year,
     current_month: data.current_month,
     current_day: data.current_day,
+    prev_month_year: data.prev_month_year,
+    prev_month_month: data.prev_month_month,
+    prev_month_name: data.prev_month_name,
+    same_month_last_year_year: data.same_month_last_year_year,
+    same_month_last_year_month: data.same_month_last_year_month,
+    same_month_last_year_name: data.same_month_last_year_name,
     updated_at: data.updated_at,
   };
 }
