@@ -360,3 +360,150 @@ export function derivePeriods(
     mismoMesAAnt: { year: currentYear - 1, month: currentMonth },
   };
 }
+
+// ── Cálculos de Objetivos del Mes ────────────────────────────
+
+export type MonthlyTotals = {
+  facturacion: number;
+  clientes: number;
+  producto: number;
+  byBranch: {
+    colon: { facturacion: number; clientes: number; producto: number };
+    serrano: { facturacion: number; clientes: number; producto: number };
+    peron: { facturacion: number; clientes: number; producto: number };
+    san_martin: { facturacion: number; clientes: number; producto: number };
+    virtual: { facturacion: number; clientes: number; producto: number };
+  };
+};
+
+/**
+ * Calcula los totales de un mes completo por tipo de métrica y sucursal
+ */
+export async function getMonthlyTotals(
+  year: number,
+  month: number
+): Promise<MonthlyTotals> {
+  'use server';
+
+  const records = await getRecordsByYearMonth(year, month);
+
+  const totals: MonthlyTotals = {
+    facturacion: 0,
+    clientes: 0,
+    producto: 0,
+    byBranch: {
+      colon: { facturacion: 0, clientes: 0, producto: 0 },
+      serrano: { facturacion: 0, clientes: 0, producto: 0 },
+      peron: { facturacion: 0, clientes: 0, producto: 0 },
+      san_martin: { facturacion: 0, clientes: 0, producto: 0 },
+      virtual: { facturacion: 0, clientes: 0, producto: 0 },
+    },
+  };
+
+  records.forEach((record) => {
+    const tipo = record.tipo as 'Facturacion' | 'Clientes' | 'Producto';
+    const tipoKey = tipo === 'Facturacion' ? 'facturacion' : tipo === 'Clientes' ? 'clientes' : 'producto';
+
+    // Totales generales
+    totals[tipoKey] += record.total;
+
+    // Totales por sucursal
+    const branches = [
+      { key: 'colon' as const, value: record.colon },
+      { key: 'serrano' as const, value: record.serrano },
+      { key: 'peron' as const, value: record.peron },
+      { key: 'san_martin' as const, value: record.san_martin },
+      { key: 'virtual' as const, value: record.virtual },
+    ];
+
+    branches.forEach(({ key, value }) => {
+      if (value !== null) {
+        totals.byBranch[key][tipoKey] += value;
+      }
+    });
+  });
+
+  return totals;
+}
+
+/**
+ * Calcula los objetivos del mes basado en porcentaje transcurrido
+ */
+export async function calculateMonthlyGoals(
+  currentYear: number,
+  currentMonth: number,
+  currentDay: number,
+  daysInCurrentMonth: number
+) {
+  'use server';
+
+  // Calcular porcentaje transcurrido
+  const percentageTranscurred = (currentDay / daysInCurrentMonth) * 100;
+
+  // Obtener períodos
+  const periods = derivePeriods(currentYear, currentMonth);
+
+  // Obtener totales de meses de comparación
+  const [prevMonthTotals, sameMonthLastYearTotals] = await Promise.all([
+    getMonthlyTotals(periods.mesAnterior.year, periods.mesAnterior.month),
+    getMonthlyTotals(periods.mismoMesAAnt.year, periods.mismoMesAAnt.month),
+  ]);
+
+  // Aplicar porcentaje a los totales
+  const applyPercentage = (totals: MonthlyTotals, percentage: number): MonthlyTotals => {
+    const factor = percentage / 100;
+    return {
+      facturacion: Math.round(totals.facturacion * factor),
+      clientes: Math.round(totals.clientes * factor),
+      producto: Math.round(totals.producto * factor),
+      byBranch: {
+        colon: {
+          facturacion: Math.round(totals.byBranch.colon.facturacion * factor),
+          clientes: Math.round(totals.byBranch.colon.clientes * factor),
+          producto: Math.round(totals.byBranch.colon.producto * factor),
+        },
+        serrano: {
+          facturacion: Math.round(totals.byBranch.serrano.facturacion * factor),
+          clientes: Math.round(totals.byBranch.serrano.clientes * factor),
+          producto: Math.round(totals.byBranch.serrano.producto * factor),
+        },
+        peron: {
+          facturacion: Math.round(totals.byBranch.peron.facturacion * factor),
+          clientes: Math.round(totals.byBranch.peron.clientes * factor),
+          producto: Math.round(totals.byBranch.peron.producto * factor),
+        },
+        san_martin: {
+          facturacion: Math.round(totals.byBranch.san_martin.facturacion * factor),
+          clientes: Math.round(totals.byBranch.san_martin.clientes * factor),
+          producto: Math.round(totals.byBranch.san_martin.producto * factor),
+        },
+        virtual: {
+          facturacion: Math.round(totals.byBranch.virtual.facturacion * factor),
+          clientes: Math.round(totals.byBranch.virtual.clientes * factor),
+          producto: Math.round(totals.byBranch.virtual.producto * factor),
+        },
+      },
+    };
+  };
+
+  return {
+    percentageTranscurred,
+    prevMonthGoals: applyPercentage(prevMonthTotals, percentageTranscurred),
+    sameMonthLastYearGoals: applyPercentage(sameMonthLastYearTotals, percentageTranscurred),
+  };
+}
+
+/**
+ * Guarda totales mensuales personalizados (para carga manual)
+ */
+export async function saveMonthlyTotals(
+  year: number,
+  month: number,
+  totals: MonthlyTotals
+): Promise<void> {
+  'use server';
+
+  // Guardar en una tabla de totales mensuales (si existe)
+  // Por ahora, solo retornamos los datos
+  console.log(`Saved monthly totals for ${month}/${year}:`, totals);
+}

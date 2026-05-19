@@ -7,7 +7,14 @@ import { BranchTable }      from "@/components/dashboard/BranchTable";
 import { PaymentMix }       from "@/components/dashboard/PaymentMix";
 import { ShrinkagePanel }   from "@/components/dashboard/ShrinkagePanel";
 import { RRHHPanel }        from "@/components/dashboard/RRHHPanel";
+
 export default function DashboardPage() {
+  // Configuración del mes actual
+  const currentDay = 19;
+  const currentMonth = 5;
+  const currentYear = 2026;
+  const daysInMonth = 31;
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
 
@@ -26,7 +33,12 @@ export default function DashboardPage() {
         {/* Row 2: Progresión diaria + Gauge Objetivos — mismo alto */}
         <div className="grid grid-cols-2 gap-3 items-stretch">
           <DailyProgress />
-          <MonthlyGoals />
+          <MonthlyGoals
+            currentDay={currentDay}
+            currentMonth={currentMonth}
+            currentYear={currentYear}
+            daysInMonth={daysInMonth}
+          />
         </div>
 
         {/* Row 4: Tabla comparativa sucursales */}
@@ -44,7 +56,7 @@ export default function DashboardPage() {
       {/* Footer */}
       <footer className="border-t border-border px-4 py-2 flex items-center justify-between bg-card">
         <p className="text-[10px] text-muted-foreground">
-          Datos reales al 14/05/2026 &mdash; preparado para integración con Supabase
+          Datos reales al {currentDay}/{currentMonth}/{currentYear} &mdash; preparado para integración con Supabase
         </p>
         <p className="text-[10px] text-muted-foreground">
           Reporte de Sucursales | v2.0

@@ -1,6 +1,8 @@
 "use client";
 
-import { kpiMes, REPORT_PERIODO } from "@/lib/mock-data";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TrendingUp, Clock } from "lucide-react";
 
 type Estado = "green" | "yellow" | "red";
 
@@ -11,14 +13,12 @@ const STATE = {
 };
 
 // ── SVG Gauge ──────────────────────────────────────────────
-// ViewBox 0 0 200 120 — semicircle centre (100, 108), r=88
 const CX = 100;
 const CY = 108;
 const R  = 88;
 const TRACK_W = 14;
 
 function polarToXY(angleDeg: number, radius: number) {
-  // 0° = left end, 180° = right end (clockwise along top)
   const rad = (Math.PI * angleDeg) / 180;
   return {
     x: CX - radius * Math.cos(rad),
@@ -33,7 +33,6 @@ function arcPath(startDeg: number, endDeg: number, r: number) {
   return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y}`;
 }
 
-// Tick labels at 0%, 25%, 50%, 75%, 100%
 const TICKS = [
   { deg: 0,   label: "0%"   },
   { deg: 45,  label: "25%"  },
@@ -45,8 +44,7 @@ const TICKS = [
 function SemiGauge({ pct, estado }: { pct: number; estado: Estado }) {
   const c = STATE[estado];
   const clamped = Math.min(Math.max(pct, 0), 100);
-  // Arc runs from 0° to 180°, fill = 0° to clamped*1.8°
-  const fillEnd = clamped * 1.8; // maps 0-100% → 0-180°
+  const fillEnd = clamped * 1.8;
   const needleDeg = clamped * 1.8;
   const needleTip = polarToXY(needleDeg, R - 8);
   const needleBase1 = polarToXY(needleDeg + 90, 7);
@@ -64,7 +62,6 @@ function SemiGauge({ pct, estado }: { pct: number; estado: Estado }) {
         </filter>
       </defs>
 
-      {/* Track (full arc background) */}
       <path
         d={arcPath(0, 180, R)}
         fill="none"
@@ -73,7 +70,6 @@ function SemiGauge({ pct, estado }: { pct: number; estado: Estado }) {
         strokeLinecap="round"
       />
 
-      {/* Fill arc */}
       {clamped > 0 && (
         <path
           d={arcPath(0, fillEnd, R)}
@@ -86,7 +82,6 @@ function SemiGauge({ pct, estado }: { pct: number; estado: Estado }) {
         />
       )}
 
-      {/* Inner subtle track line */}
       <path
         d={arcPath(0, 180, R - TRACK_W / 2 - 2)}
         fill="none"
@@ -97,7 +92,6 @@ function SemiGauge({ pct, estado }: { pct: number; estado: Estado }) {
         opacity="0.7"
       />
 
-      {/* Tick marks */}
       {TICKS.map(({ deg }) => {
         const outer = polarToXY(deg, R + 6);
         const inner = polarToXY(deg, R - TRACK_W / 2 - 2);
@@ -113,7 +107,6 @@ function SemiGauge({ pct, estado }: { pct: number; estado: Estado }) {
         );
       })}
 
-      {/* Tick labels */}
       {TICKS.map(({ deg, label }) => {
         const pos = polarToXY(deg, R + 18);
         return (
@@ -131,7 +124,6 @@ function SemiGauge({ pct, estado }: { pct: number; estado: Estado }) {
         );
       })}
 
-      {/* Needle shadow */}
       <line
         x1={CX} y1={CY}
         x2={needleTip.x} y2={needleTip.y}
@@ -141,47 +133,40 @@ function SemiGauge({ pct, estado }: { pct: number; estado: Estado }) {
         transform="translate(1,2)"
       />
 
-      {/* Needle */}
       <polygon
         points={`${needleTip.x},${needleTip.y} ${needleBase1.x},${needleBase1.y} ${needleBase2.x},${needleBase2.y}`}
         fill={c.needle}
         opacity="0.95"
       />
 
-      {/* Hub outer ring */}
       <circle cx={CX} cy={CY} r="10" fill="white" stroke="#e2e8f0" strokeWidth="1.5" />
-      {/* Hub inner */}
       <circle cx={CX} cy={CY} r="6" fill={c.arc} />
     </svg>
   );
 }
 
-// ── Gauge Card ─────────────────────────────────────────────
 type GaugeProps = {
   label: string;
-  valueLine1: string;
-  valueLine2: string;
-  objetivo: string;
-  pct: number;
-  estado: Estado;
+  actual: number;
+  objetivo: number;
+  formato: (n: number) => string;
 };
 
-function GaugeCard({ label, valueLine1, valueLine2, objetivo, pct, estado }: GaugeProps) {
+function GaugeCard({ label, actual, objetivo, formato }: GaugeProps) {
+  const pct = objetivo > 0 ? (actual / objetivo) * 100 : 0;
+  const estado: Estado = pct >= 100 ? "green" : pct >= 85 ? "yellow" : "red";
   const c = STATE[estado];
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col items-center shadow-sm hover:shadow-md transition-shadow">
-      {/* Label */}
       <p className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold text-center mb-1">
         {label}
       </p>
 
-      {/* Gauge SVG */}
       <div className="w-full">
         <SemiGauge pct={pct} estado={estado} />
       </div>
 
-      {/* Percentage — centred below gauge */}
       <p
         className="text-2xl font-black leading-none -mt-2 tabular-nums"
         style={{ color: c.arc }}
@@ -190,25 +175,21 @@ function GaugeCard({ label, valueLine1, valueLine2, objetivo, pct, estado }: Gau
         <span className="text-base font-bold">%</span>
       </p>
 
-      {/* Divider */}
       <div className="w-10 h-px bg-slate-200 my-2.5" />
 
-      {/* Values */}
       <div className="w-full space-y-1">
         <div className="flex justify-between items-baseline gap-2">
-          <span className="text-[10px] text-slate-400 whitespace-nowrap">Acumulado</span>
-          <span className="text-[11px] font-bold text-slate-700 text-right leading-tight">
-            {valueLine1}
-            {valueLine2 && <span className="block text-[9px] font-normal text-slate-400">{valueLine2}</span>}
+          <span className="text-[10px] text-slate-400 whitespace-nowrap">Actual</span>
+          <span className="text-[11px] font-bold text-slate-700 text-right">
+            {formato(actual)}
           </span>
         </div>
         <div className="flex justify-between items-baseline gap-2">
           <span className="text-[10px] text-slate-400">Objetivo</span>
-          <span className="text-[10px] text-slate-500 text-right">{objetivo}</span>
+          <span className="text-[10px] text-slate-500 text-right">{formato(objetivo)}</span>
         </div>
       </div>
 
-      {/* Status badge */}
       <div
         className={`mt-2.5 w-full text-center py-1 rounded-lg text-[10px] font-bold border ${c.labelCls}`}
       >
@@ -218,61 +199,160 @@ function GaugeCard({ label, valueLine1, valueLine2, objetivo, pct, estado }: Gau
   );
 }
 
-// ── Main export ─────────────────────────────────────────────
-export function MonthlyGoals() {
-  const { facturacion, clientes, changoPromedio } = kpiMes;
+interface MonthlyGoalsProps {
+  currentDay: number;
+  currentMonth: number;
+  currentYear: number;
+  daysInMonth: number;
+}
 
-  const facPct    = (facturacion.acumulado    / facturacion.metaMes)    * 100;
-  const cliPct    = (clientes.acumulado       / clientes.metaMes)       * 100;
-  const changoPct = (changoPromedio.acumulado / changoPromedio.metaMes) * 100;
+export function MonthlyGoals({
+  currentDay,
+  currentMonth,
+  currentYear,
+  daysInMonth,
+}: MonthlyGoalsProps) {
+  const [goals, setGoals] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const getEstado = (p: number): Estado =>
-    p >= 100 ? "green" : p >= 85 ? "yellow" : "red";
+  useEffect(() => {
+    loadGoals();
+  }, [currentDay, currentMonth, currentYear, daysInMonth]);
+
+  const loadGoals = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/monthly-goals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentYear,
+          currentMonth,
+          currentDay,
+          daysInMonth,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setGoals(data);
+      }
+    } catch (error) {
+      console.error("Error loading goals:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading || !goals) {
+    return (
+      <div className="bg-card border border-border rounded-xl shadow-sm p-4">
+        <p className="text-sm text-slate-500">Cargando objetivos...</p>
+      </div>
+    );
+  }
+
+  const percentageTranscurred = (currentDay / daysInMonth) * 100;
+  const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+  const monthName = monthNames[currentMonth - 1];
 
   const fmtShort = (n: number) => {
-    if (n >= 1_000_000_000) return "$" + (n / 1_000_000_000).toFixed(3).replace(".", ",") + " B";
-    if (n >= 1_000_000)     return "$" + (n / 1_000_000).toFixed(2).replace(".", ",") + " M";
+    if (n >= 1_000_000_000) return "$" + (n / 1_000_000_000).toFixed(2).replace(".", ",") + " B";
+    if (n >= 1_000_000)     return "$" + (n / 1_000_000).toFixed(1).replace(".", ",") + " M";
     return "$" + n.toLocaleString("es-AR");
   };
 
+  const fmtNum = (n: number) => n.toLocaleString("es-AR");
+
   return (
     <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden h-full flex flex-col">
-      {/* Header */}
       <div
         className="px-4 py-2.5 border-b border-border flex items-center justify-between"
         style={{ background: "#0d1b35" }}
       >
-        <p className="text-[11px] uppercase tracking-wider text-blue-300 font-semibold">
-          Objetivos del Mes &mdash; {REPORT_PERIODO}
+        <p className="text-[11px] uppercase tracking-wider text-blue-300 font-semibold flex items-center gap-2">
+          <TrendingUp className="w-4 h-4" />
+          Objetivos del Mes — {monthName}
         </p>
-        <span className="text-[10px] text-slate-400">Acumulado mensual</span>
+        <span className="text-[10px] text-slate-400">
+          {currentDay} de {daysInMonth} días ({percentageTranscurred.toFixed(1)}%)
+        </span>
       </div>
 
       <div className="flex-1 p-3 grid grid-cols-3 gap-3">
         <GaugeCard
-          label="Meta Facturación"
-          valueLine1={fmtShort(facturacion.acumulado)}
-          valueLine2=""
-          objetivo={fmtShort(facturacion.metaMes)}
-          pct={facPct}
-          estado={getEstado(facPct)}
+          label="Facturación"
+          actual={goals.currentMonthActual?.facturacion || 0}
+          objetivo={goals.prevMonthGoals.facturacion}
+          formato={fmtShort}
         />
         <GaugeCard
-          label="Meta Clientes"
-          valueLine1={clientes.acumulado.toLocaleString("es-AR")}
-          valueLine2="transacciones"
-          objetivo={clientes.metaMes.toLocaleString("es-AR")}
-          pct={cliPct}
-          estado={getEstado(cliPct)}
+          label="Clientes"
+          actual={goals.currentMonthActual?.clientes || 0}
+          objetivo={goals.prevMonthGoals.clientes}
+          formato={fmtNum}
         />
         <GaugeCard
-          label="Chango Promedio"
-          valueLine1={changoPromedio.acumulado.toFixed(2) + " ítem"}
-          valueLine2=""
-          objetivo={changoPromedio.metaMes.toFixed(2) + " ítem"}
-          pct={changoPct}
-          estado={getEstado(changoPct)}
+          label="Producto"
+          actual={goals.currentMonthActual?.producto || 0}
+          objetivo={goals.prevMonthGoals.producto}
+          formato={fmtNum}
         />
+      </div>
+
+      {/* Panel de Sucursales */}
+      <div className="border-t border-border p-3 bg-slate-50">
+        <h4 className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-2">
+          <Clock className="w-4 h-4" />
+          Detalle por Sucursal (Objetivo Mes Anterior)
+        </h4>
+        <div className="grid grid-cols-5 gap-2">
+          {["colon", "serrano", "peron", "san_martin", "virtual"].map((branch) => (
+            <BranchCard key={branch} branch={branch} goals={goals} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BranchCard({ branch, goals }: any) {
+  const branchNames: Record<string, string> = {
+    colon: "Colón",
+    serrano: "Serrano",
+    peron: "Perón",
+    san_martin: "San Martín",
+    virtual: "Virtual",
+  };
+
+  const branchKey = branch as keyof typeof goals.prevMonthGoals.byBranch;
+  const branchData = goals.prevMonthGoals.byBranch[branchKey];
+
+  return (
+    <div className="p-2 bg-white rounded-lg border border-slate-200 text-center">
+      <div className="flex items-center justify-center gap-1 mb-2">
+        <Clock className="w-3 h-3 text-blue-600" />
+        <h5 className="text-xs font-semibold text-slate-700">{branchNames[branch]}</h5>
+      </div>
+      <div className="space-y-1 text-xs">
+        <div>
+          <span className="text-slate-500">Fact:</span>
+          <span className="font-semibold block text-slate-700">
+            ${(branchData.facturacion / 1000).toFixed(0)}K
+          </span>
+        </div>
+        <div>
+          <span className="text-slate-500">Clientes:</span>
+          <span className="font-semibold block text-slate-700">
+            {branchData.clientes.toLocaleString("es-AR")}
+          </span>
+        </div>
+        <div>
+          <span className="text-slate-500">Prod:</span>
+          <span className="font-semibold block text-slate-700">
+            {branchData.producto.toLocaleString("es-AR")}
+          </span>
+        </div>
       </div>
     </div>
   );
