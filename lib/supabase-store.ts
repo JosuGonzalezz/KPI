@@ -2,8 +2,6 @@
 // SUPABASE STORE — Reemplazo del store local con Supabase
 // ============================================================
 
-'use server';
-
 import { supabase, type DailyRecord, type AppConfig } from './supabase';
 import type { TipoMetrica, BranchKey } from './report-data';
 
@@ -16,6 +14,8 @@ function formatBranchKey(key: string): string {
 
 /** Lee la configuración activa del reporte */
 export async function getConfig(): Promise<AppConfig> {
+  'use server';
+  
   const { data, error } = await supabase
     .from('config')
     .select('*')
@@ -44,6 +44,8 @@ export async function getConfig(): Promise<AppConfig> {
 
 /** Guarda la configuración activa */
 export async function saveConfig(config: Partial<AppConfig>): Promise<AppConfig> {
+  'use server';
+  
   // Intentar actualizar primero
   const { data: existing, error: fetchError } = await supabase
     .from('config')
@@ -83,6 +85,8 @@ export async function saveConfig(config: Partial<AppConfig>): Promise<AppConfig>
 
 /** Lee todos los registros del store */
 export async function getAllRecords(): Promise<DailyRecord[]> {
+  'use server';
+  
   const { data, error } = await supabase
     .from('daily_records')
     .select('*')
@@ -101,6 +105,8 @@ export async function getRecordsByYearMonth(
   year: number,
   month: number
 ): Promise<DailyRecord[]> {
+  'use server';
+  
   const { data, error } = await supabase
     .from('daily_records')
     .select('*')
@@ -122,6 +128,8 @@ export async function getRecordsByYearMonth(
 export async function upsertRecords(
   incoming: DailyRecord[]
 ): Promise<{ inserted: number; updated: number }> {
+  'use server';
+  
   const all = await getAllRecords();
   const key = (r: DailyRecord) => `${r.fecha}::${r.tipo}`;
   const map = new Map<string, DailyRecord>(
@@ -170,6 +178,8 @@ export async function deleteByYearMonth(
   year: number,
   month: number
 ): Promise<number> {
+  'use server';
+  
   const { error } = await supabase
     .from('daily_records')
     .delete()
