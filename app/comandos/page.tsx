@@ -397,76 +397,12 @@ export default function ComandosPage() {
     saveAcumuladoMTD(acumuladoMTD);
     setMtdSaved(true);
     setTimeout(() => setMtdSaved(false), 2500);
-    
-    // Guardar en Supabase en background (sin bloquear UI)
-    syncToSupabase();
   }
 
   function handleSaveRRHH() {
     saveRRHHAyer(rrhhAyer);
     setRrhhSaved(true);
     setTimeout(() => setRrhhSaved(false), 2500);
-    
-    // Guardar en Supabase en background (sin bloquear UI)
-    syncRRHHToSupabase();
-  }
-
-  // ── Sync to Supabase in background ─────────────────────────
-  async function syncToSupabase() {
-    try {
-      const prevMonth = config.currentMonth === 1 ? 12 : config.currentMonth - 1;
-      const prevYear = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
-      const lastYear = config.currentYear - 1;
-
-      // Fire and forget - no await, no error handling
-      fetch("/api/period-comparatives", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          periodType: "mes_anterior",
-          year: prevYear,
-          month: prevMonth,
-          data: mesAnterior,
-        }),
-      }).catch(() => {}); // Silently ignore errors
-
-      fetch("/api/period-comparatives", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          periodType: "mismo_mes_aa",
-          year: lastYear,
-          month: config.currentMonth,
-          data: mismoMesAA,
-        }),
-      }).catch(() => {}); // Silently ignore errors
-
-      fetch("/api/period-comparatives", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          periodType: "acumulado_mtd",
-          year: config.currentYear,
-          month: config.currentMonth,
-          data: acumuladoMTD,
-        }),
-      }).catch(() => {}); // Silently ignore errors
-    } catch (error) {
-      // Silently ignore
-    }
-  }
-
-  async function syncRRHHToSupabase() {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      fetch("/api/rrhh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: today, data: rrhhAyer }),
-      }).catch(() => {}); // Silently ignore errors
-    } catch (error) {
-      // Silently ignore
-    }
   }
 
   function updateRRHH(branch: keyof RRHHSnapshot, field: 'programados' | 'presentes', raw: string) {
@@ -495,7 +431,7 @@ export default function ComandosPage() {
         <Settings2 className="w-4 h-4 text-blue-300" />
         <h1 className="text-lg font-bold text-white">Panel de Comandos</h1>
         <span className="ml-auto text-[11px] text-slate-500">
-          Supabase &mdash; almacenamiento persistente activo
+          Session storage — datos temporales
         </span>
         {storeStats.length > 0 && (
           <ExportDataPDF year={config.currentYear} month={config.currentMonth} day={config.currentDay} />
