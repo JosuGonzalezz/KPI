@@ -55,7 +55,7 @@ function SemiGauge({ pct, estado }: { pct: number; estado: Estado }) {
   const needleBase2 = polarToXY(needleDeg - 90, 7);
 
   return (
-    <svg viewBox="0 0 200 120" className="w-full" aria-hidden="true">
+    <svg viewBox="0 0 200 120" className="w-24 mx-auto" aria-hidden="true">
       <defs>
         <filter id={`glow-${estado}`} x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="3" result="blur" />
@@ -163,8 +163,8 @@ function GaugeCard({ label, actual, objetivo, formato, pctDias }: GaugeProps) {
   const c = STATE[estado];
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col items-center shadow-sm hover:shadow-md transition-shadow">
-      <p className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold text-center mb-1">
+    <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col items-center shadow-sm hover:shadow-md transition-shadow">
+      <p className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold text-center mb-1.5">
         {label}
       </p>
 
@@ -173,36 +173,30 @@ function GaugeCard({ label, actual, objetivo, formato, pctDias }: GaugeProps) {
       </div>
 
       <p
-        className="text-2xl font-black leading-none -mt-2 tabular-nums"
+        className="text-xl font-black leading-none -mt-1 tabular-nums"
         style={{ color: c.arc }}
       >
-        {pct.toFixed(1)}
-        <span className="text-base font-bold">%</span>
+        {pct.toFixed(0)}
+        <span className="text-xs font-bold">%</span>
       </p>
 
-      <div className="w-10 h-px bg-slate-200 my-2.5" />
+      <div className="w-8 h-px bg-slate-200 my-1.5" />
 
-      <div className="w-full space-y-1">
-        <div className="flex justify-between items-baseline gap-2">
-          <span className="text-[10px] text-slate-400 whitespace-nowrap">Actual</span>
-          <span className="text-[11px] font-bold text-slate-700 text-right">
+      <div className="w-full space-y-0.5 text-[9px]">
+        <div className="flex justify-between items-baseline gap-1">
+          <span className="text-slate-400 whitespace-nowrap">Actual</span>
+          <span className="font-bold text-slate-700 text-right">
             {formato(actual)}
           </span>
         </div>
-        <div className="flex justify-between items-baseline gap-2">
-          <span className="text-[10px] text-slate-400">Objetivo AA</span>
-          <span className="text-[10px] text-slate-500 text-right">{formato(objetivo)}</span>
+        <div className="flex justify-between items-baseline gap-1">
+          <span className="text-slate-400">Objetivo</span>
+          <span className="text-slate-500 text-right">{formato(objetivo)}</span>
         </div>
-        {pctDias !== undefined && pctDias > 0 && (
-          <div className="flex justify-between items-baseline gap-2">
-            <span className="text-[10px] text-slate-400">Ritmo esperado</span>
-            <span className="text-[10px] text-slate-500 text-right">{formato(objetivo * pctDias / 100)}</span>
-          </div>
-        )}
       </div>
 
       <div
-        className={`mt-2.5 w-full text-center py-1 rounded-lg text-[10px] font-bold border ${c.labelCls}`}
+        className={`mt-1.5 w-full text-center py-0.5 rounded-md text-[8px] font-bold border ${c.labelCls}`}
       >
         {c.label}
       </div>
