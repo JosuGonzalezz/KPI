@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { kpiMes } from "@/lib/mock-data";
 import { TrendingUp, TrendingDown, Users, ShoppingCart, Package, BarChart2 } from "lucide-react";
 import {
-  loadAcumuladoMTD, loadMismoMesAA,
+  loadAcumuladoMTD, loadMismoMesAA, loadMesAnterior,
   hasMTDData,
 } from "@/lib/report-session-store";
 
@@ -34,12 +34,14 @@ type KPICardProps = {
 function DeltaBadge({ value, label }: Delta) {
   const pos = value >= 0;
   return (
-    <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border
-      ${pos ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-600 border-red-200"}`}
+    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border
+      ${pos 
+        ? "bg-green-50/80 text-green-700 border-green-300 shadow-sm" 
+        : "bg-red-50/80 text-red-600 border-red-300 shadow-sm"}`}
     >
-      {pos ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-      {pct(value)}
-      <span className="text-[9px] font-normal opacity-70">{label}</span>
+      {pos ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+      <span className="font-bold">{pct(value)}</span>
+      <span className="text-[10px] font-medium opacity-75">{label}</span>
     </div>
   );
 }
@@ -51,7 +53,7 @@ function KPICard({ label, value, subvalue, deltas, icon, metaPct }: KPICardProps
   const pctColor    = { green: "text-green-600",       yellow: "text-amber-600",      red: "text-red-600"      }[estado];
 
   return (
-    <div className={`bg-card border border-border border-l-4 ${borderColor} rounded-xl p-4 flex flex-col gap-3 shadow-sm`}>
+    <div className={`bg-card border border-border border-l-4 ${borderColor} rounded-lg p-3 flex flex-col gap-3 shadow-sm`}>
       {/* Top row */}
       <div className="flex items-start justify-between">
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold leading-tight">{label}</span>
@@ -60,22 +62,22 @@ function KPICard({ label, value, subvalue, deltas, icon, metaPct }: KPICardProps
 
       {/* Main value */}
       <div>
-        <p className="text-2xl font-black text-foreground leading-none tabular-nums">{value}</p>
-        {subvalue && <p className="text-[10px] text-muted-foreground mt-0.5">{subvalue}</p>}
+        <p className="text-xl font-black text-foreground leading-none tabular-nums">{value}</p>
+        {subvalue && <p className="text-[9px] text-muted-foreground mt-1">{subvalue}</p>}
       </div>
 
-      {/* Delta badges */}
-      <div className="flex flex-wrap gap-1.5">
+      {/* Delta badges — expanded */}
+      <div className="flex flex-wrap gap-2">
         {deltas.map((d) => <DeltaBadge key={d.label} {...d} />)}
       </div>
 
       {/* Progress vs meta */}
       <div>
-        <div className="flex items-center justify-between text-[10px] mb-1">
+        <div className="flex items-center justify-between text-[9px] mb-1.5">
           <span className="text-muted-foreground">Avance vs meta</span>
-          <span className={`font-bold ${pctColor}`}>{metaPct.toFixed(1)}%</span>
+          <span className={`font-bold ${pctColor} tabular-nums`}>{metaPct.toFixed(0)}%</span>
         </div>
-        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className="h-2 bg-muted rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all ${barColor}`}
             style={{ width: `${Math.min(metaPct, 100)}%` }}
@@ -98,6 +100,7 @@ export function KPICards() {
     if (!hasMTDData()) return;
     const acum = loadAcumuladoMTD();
     const aa   = loadMismoMesAA();
+    const ant  = loadMesAnterior();
 
     // Override with session data if available
     const newFact = acum.facturacion.total > 0 ? acum.facturacion.total : kpiMes.facturacion.acumulado;
@@ -107,16 +110,20 @@ export function KPICards() {
     setFacturacion({
       ...kpiMes.facturacion,
       acumulado: newFact,
-      vsAA: aa.facturacion.total > 0 ? ((newFact - aa.facturacion.total) / aa.facturacion.total) * 100 : 0,
+      vsMesAnt: ant.facturacion.total > 0 ? ((newFact - ant.facturacion.total) / ant.facturacion.total) * 100 : 0,
+      vsAA:     aa.facturacion.total  > 0 ? ((newFact - aa.facturacion.total)  / aa.facturacion.total)  * 100 : 0,
     });
     setClientes({
       ...kpiMes.clientes,
       acumulado: newCli,
-      vsAA: aa.clientes.total > 0 ? ((newCli - aa.clientes.total) / aa.clientes.total) * 100 : 0,
+      vsMesAnt: ant.clientes.total > 0 ? ((newCli - ant.clientes.total) / ant.clientes.total) * 100 : 0,
+      vsAA:     aa.clientes.total  > 0 ? ((newCli - aa.clientes.total)  / aa.clientes.total)  * 100 : 0,
     });
     setTicketPromedio({
       ...kpiMes.ticketPromedio,
       acumulado: newTicket,
+      vsMesAnt: 0, // ticket promedio no varía vs mes anterior, se recalcula
+      vsAA: 0,
     });
     setUsingSessionData(true);
   }, []);
