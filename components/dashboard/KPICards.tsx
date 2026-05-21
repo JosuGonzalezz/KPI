@@ -1,7 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { kpiMes } from "@/lib/mock-data";
 import { TrendingUp, TrendingDown, Users, ShoppingCart, Package, BarChart2 } from "lucide-react";
+import {
+  loadAcumuladoMTD, loadMismoMesAA,
+  hasMTDData,
+} from "@/lib/report-session-store";
 
 function fmt(n: number) {
   if (n >= 1_000_000_000) return "$" + (n / 1_000_000_000).toFixed(3).replace(".", ",") + " B";
@@ -82,7 +87,39 @@ function KPICard({ label, value, subvalue, deltas, icon, metaPct }: KPICardProps
 }
 
 export function KPICards() {
-  const { facturacion, clientes, ticketPromedio, changoPromedio } = kpiMes;
+  // Session-aware KPI values
+  const [facturacion,    setFacturacion]    = useState(kpiMes.facturacion);
+  const [clientes,       setClientes]       = useState(kpiMes.clientes);
+  const [ticketPromedio, setTicketPromedio] = useState(kpiMes.ticketPromedio);
+  const [changoPromedio, setChangoPromedio] = useState(kpiMes.changoPromedio);
+  const [usingSessionData, setUsingSessionData] = useState(false);
+
+  useEffect(() => {
+    if (!hasMTDData()) return;
+    const acum = loadAcumuladoMTD();
+    const aa   = loadMismoMesAA();
+
+    // Override with session data if available
+    const newFact = acum.facturacion.total > 0 ? acum.facturacion.total : kpiMes.facturacion.acumulado;
+    const newCli  = acum.clientes.total > 0    ? acum.clientes.total    : kpiMes.clientes.acumulado;
+    const newTicket = newCli > 0 ? newFact / newCli : kpiMes.ticketPromedio.acumulado;
+
+    setFacturacion({
+      ...kpiMes.facturacion,
+      acumulado: newFact,
+      vsAA: aa.facturacion.total > 0 ? ((newFact - aa.facturacion.total) / aa.facturacion.total) * 100 : 0,
+    });
+    setClientes({
+      ...kpiMes.clientes,
+      acumulado: newCli,
+      vsAA: aa.clientes.total > 0 ? ((newCli - aa.clientes.total) / aa.clientes.total) * 100 : 0,
+    });
+    setTicketPromedio({
+      ...kpiMes.ticketPromedio,
+      acumulado: newTicket,
+    });
+    setUsingSessionData(true);
+  }, []);
 
   return (
     <div className="grid grid-cols-4 gap-3">
