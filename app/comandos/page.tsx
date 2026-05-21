@@ -59,7 +59,7 @@ export default function ComandosPage() {
     currentYear: 2026, currentMonth: 5, currentDay: 14, updatedAt: "",
   });
   const [configSaved, setConfigSaved] = useState(false);
-  const [configLoading, setConfigLoading] = useState(false);
+  const [configLoading, setConfigLoading] = useState(true);
 
   // ── CSV Upload state ───────────────────────────────────────
   const [dragging, setDragging]   = useState(false);
@@ -99,8 +99,13 @@ export default function ComandosPage() {
   useEffect(() => {
     fetch("/api/config")
       .then(r => r.json())
-      .then((c: AppConfig) => setConfig(c))
-      .catch(() => null);
+      .then((c: AppConfig) => {
+        setConfig(c);
+        setConfigLoading(false);
+      })
+      .catch(() => {
+        setConfigLoading(false);
+      });
     loadStoreStats();
     // Restore any data already entered this session
     setMesAnterior(loadMesAnterior());
