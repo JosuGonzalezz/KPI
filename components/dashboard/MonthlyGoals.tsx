@@ -198,10 +198,14 @@ function GaugeCard({ label, actual, objetivo, formato, pctDias }: GaugeProps) {
             </div>
           </div>
 
-          <div
-            className={`w-full text-center py-1 rounded-md text-[8px] font-bold border ${c.labelCls}`}
-          >
-            {c.label}
+          <div className="flex items-center justify-center gap-1">
+            <div
+              className="w-2 h-2 rounded-full"
+              style={{ background: c.arc }}
+            />
+            <span className="text-[8px] font-bold" style={{ color: c.arc }}>
+              {c.label}
+            </span>
           </div>
         </div>
       </div>
