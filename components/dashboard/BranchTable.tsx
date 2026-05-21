@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { branchRows, totalRow, REPORT_DATE, type BranchRow } from "@/lib/mock-data";
 import {
-  loadAcumuladoMTD, loadMismoMesAA,
+  loadAcumuladoMTD, loadMismoMesAA, loadMesAnterior,
   hasMTDData,
   type BranchBreakdown,
 } from "@/lib/report-session-store";
@@ -141,6 +141,8 @@ export function BranchTable() {
     facAA: number,
     cliAA: number,
     proAA: number,
+    facAnt: number,
+    cliAnt: number,
   ): BranchRow => {
     const branchKey = name.toLowerCase() === "colón" ? "colon"
                     : name.toLowerCase() === "serrano" ? "serrano"
@@ -155,12 +157,12 @@ export function BranchTable() {
       name,
       facturacion: fac,
       pctTotal: 0, // calc later
-      vsMesAnt: 0,
-      vsAA: facAA > 0 ? ((fac - facAA) / facAA) * 100 : 0,
+      vsMesAnt: facAnt > 0 ? ((fac - facAnt) / facAnt) * 100 : 0,
+      vsAA:     facAA  > 0 ? ((fac - facAA)  / facAA)  * 100 : 0,
       clientes: cli,
       pctTotalCli: 0, // calc later
-      vsMesAntCli: 0,
-      vsAACli: cliAA > 0 ? ((cli - cliAA) / cliAA) * 100 : 0,
+      vsMesAntCli: cliAnt > 0 ? ((cli - cliAnt) / cliAnt) * 100 : 0,
+      vsAACli:     cliAA  > 0 ? ((cli - cliAA)  / cliAA)  * 100 : 0,
       ticketProm: cli > 0 ? fac / cli : 0,
       vsAATicket: 0,
       productos: pro,
@@ -176,6 +178,7 @@ export function BranchTable() {
     if (!hasMTDData()) return;
     const acum = loadAcumuladoMTD();
     const aa   = loadMismoMesAA();
+    const ant  = loadMesAnterior();
 
     // Check if we have actual data
     const sumBreakdown = (bd: BranchBreakdown) =>
@@ -183,13 +186,13 @@ export function BranchTable() {
     if (sumBreakdown(acum.facturacion) === 0 && sumBreakdown(acum.clientes) === 0)
       return;
 
-    // Rebuild rows using session data + AA reference
+    // Rebuild rows using session data + AA + mes anterior references
     const newRows: BranchRow[] = [
-      buildBranchRow("Colón",      acum.facturacion, acum.clientes, acum.producto, aa.facturacion.colon,     aa.clientes.colon,     aa.producto.colon),
-      buildBranchRow("Serrano",    acum.facturacion, acum.clientes, acum.producto, aa.facturacion.serrano,   aa.clientes.serrano,   aa.producto.serrano),
-      buildBranchRow("Perón",      acum.facturacion, acum.clientes, acum.producto, aa.facturacion.peron,     aa.clientes.peron,     aa.producto.peron),
-      buildBranchRow("San Martín", acum.facturacion, acum.clientes, acum.producto, aa.facturacion.sanMartin, aa.clientes.sanMartin, aa.producto.sanMartin),
-      buildBranchRow("Virtual",    acum.facturacion, acum.clientes, acum.producto, aa.facturacion.virtual,   aa.clientes.virtual,   aa.producto.virtual),
+      buildBranchRow("Colón",      acum.facturacion, acum.clientes, acum.producto, aa.facturacion.colon,     aa.clientes.colon,     aa.producto.colon,     ant.facturacion.colon,     ant.clientes.colon),
+      buildBranchRow("Serrano",    acum.facturacion, acum.clientes, acum.producto, aa.facturacion.serrano,   aa.clientes.serrano,   aa.producto.serrano,   ant.facturacion.serrano,   ant.clientes.serrano),
+      buildBranchRow("Perón",      acum.facturacion, acum.clientes, acum.producto, aa.facturacion.peron,     aa.clientes.peron,     aa.producto.peron,     ant.facturacion.peron,     ant.clientes.peron),
+      buildBranchRow("San Martín", acum.facturacion, acum.clientes, acum.producto, aa.facturacion.sanMartin, aa.clientes.sanMartin, aa.producto.sanMartin, ant.facturacion.sanMartin, ant.clientes.sanMartin),
+      buildBranchRow("Virtual",    acum.facturacion, acum.clientes, acum.producto, aa.facturacion.virtual,   aa.clientes.virtual,   aa.producto.virtual,   ant.facturacion.virtual,   ant.clientes.virtual),
     ];
 
     // Calculate totals and percentages
@@ -209,10 +212,10 @@ export function BranchTable() {
       productos: totalPro,
       pctTotal: 100,
       pctTotalCli: 100,
-      vsMesAnt: 0,
-      vsAA: aa.facturacion.total > 0 ? ((totalFac - aa.facturacion.total) / aa.facturacion.total) * 100 : 0,
-      vsMesAntCli: 0,
-      vsAACli: aa.clientes.total > 0 ? ((totalCli - aa.clientes.total) / aa.clientes.total) * 100 : 0,
+      vsMesAnt:    ant.facturacion.total > 0 ? ((totalFac - ant.facturacion.total) / ant.facturacion.total) * 100 : 0,
+      vsAA:        aa.facturacion.total  > 0 ? ((totalFac - aa.facturacion.total)  / aa.facturacion.total)  * 100 : 0,
+      vsMesAntCli: ant.clientes.total    > 0 ? ((totalCli - ant.clientes.total)    / ant.clientes.total)    * 100 : 0,
+      vsAACli:     aa.clientes.total     > 0 ? ((totalCli - aa.clientes.total)     / aa.clientes.total)     * 100 : 0,
       ticketProm: totalCli > 0 ? totalFac / totalCli : 0,
       vsAATicket: 0,
       changoProm: 0,
