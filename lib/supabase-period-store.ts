@@ -1,9 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
-const supabase = createClient(supabaseUrl, supabaseKey);
-
 export type BranchBreakdown = {
   colon: number;
   serrano: number;
@@ -27,21 +21,17 @@ export type RRHHSnapshot = {
   virtual: { programados: number; presentes: number };
 };
 
-// ── Cargar datos de Supabase ──────────────────────────────────
+// ── Cargar datos de Supabase vía API ──────────────────────────
 export async function loadPeriodFromSupabase(
   periodType: "mes_anterior" | "mismo_mes_aa" | "acumulado_mtd",
   year: number,
   month: number
 ): Promise<PeriodSnapshot> {
   try {
-    const { data, error } = await supabase
-      .from("period_comparatives")
-      .select("*")
-      .eq("period_type", periodType)
-      .eq("year", year)
-      .eq("month", month);
-
-    if (error) throw error;
+    const res = await fetch(
+      `/api/period-comparatives?periodType=${periodType}&year=${year}&month=${month}`
+    );
+    const json = await res.json();
 
     const result: PeriodSnapshot = {
       facturacion: { colon: 0, serrano: 0, peron: 0, sanMartin: 0, virtual: 0, total: 0 },
@@ -49,8 +39,8 @@ export async function loadPeriodFromSupabase(
       producto: { colon: 0, serrano: 0, peron: 0, sanMartin: 0, virtual: 0, total: 0 },
     };
 
-    if (data) {
-      for (const row of data) {
+    if (json.data) {
+      for (const row of json.data) {
         const metric = row.metric_type.toLowerCase() as keyof PeriodSnapshot;
         if (metric in result) {
           result[metric] = {
@@ -76,7 +66,7 @@ export async function loadPeriodFromSupabase(
   }
 }
 
-// ── Guardar datos en Supabase ─────────────────────────────────
+// ── Guardar datos en Supabase vía API ─────────────────────────
 export async function savePeriodToSupabase(
   periodType: "mes_anterior" | "mismo_mes_aa" | "acumulado_mtd",
   year: number,
@@ -84,69 +74,27 @@ export async function savePeriodToSupabase(
   data: PeriodSnapshot
 ): Promise<boolean> {
   try {
-    const records = [
-      {
-        period_type: periodType,
-        year,
-        month,
-        metric_type: "Facturacion",
-        colon: data.facturacion.colon,
-        serrano: data.facturacion.serrano,
-        peron: data.facturacion.peron,
-        san_martin: data.facturacion.sanMartin,
-        virtual: data.facturacion.virtual,
-        total: data.facturacion.total,
-      },
-      {
-        period_type: periodType,
-        year,
-        month,
-        metric_type: "Clientes",
-        colon: data.clientes.colon,
-        serrano: data.clientes.serrano,
-        peron: data.clientes.peron,
-        san_martin: data.clientes.sanMartin,
-        virtual: data.clientes.virtual,
-        total: data.clientes.total,
-      },
-      {
-        period_type: periodType,
-        year,
-        month,
-        metric_type: "Producto",
-        colon: data.producto.colon,
-        serrano: data.producto.serrano,
-        peron: data.producto.peron,
-        san_martin: data.producto.sanMartin,
-        virtual: data.producto.virtual,
-        total: data.producto.total,
-      },
-    ];
+    const res = await fetch("/api/period-comparatives", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ periodType, year, month, data }),
+    });
 
-    const { error } = await supabase
-      .from("period_comparatives")
-      .upsert(records, { onConflict: "period_type,year,month,metric_type" });
-
-    if (error) throw error;
-    return true;
+    const json = await res.json();
+    return json.ok === true;
   } catch (error) {
     console.error("Error saving period to Supabase:", error);
     return false;
   }
 }
 
-// ── Cargar RRHH de Supabase ───────────────────────────────────
+// ── Cargar RRHH de Supabase vía API ───────────────────────────
 export async function loadRRHHFromSupabase(date: string): Promise<RRHHSnapshot> {
   try {
-    const { data, error } = await supabase
-      .from("rrhh_data")
-      .select("*")
-      .eq("date", date)
-      .single();
+    const res = await fetch(`/api/rrhh?date=${date}`);
+    const json = await res.json();
 
-    if (error && error.code !== "PGRST116") throw error; // PGRST116 = no rows
-
-    if (!data) {
+    if (!json.data) {
       return {
         colon: { programados: 0, presentes: 0 },
         serrano: { programados: 0, presentes: 0 },
@@ -156,6 +104,7 @@ export async function loadRRHHFromSupabase(date: string): Promise<RRHHSnapshot> 
       };
     }
 
+    const data = json.data;
     return {
       colon: { programados: data.colon_programados, presentes: data.colon_presentes },
       serrano: { programados: data.serrano_programados, presentes: data.serrano_presentes },
@@ -175,30 +124,17 @@ export async function loadRRHHFromSupabase(date: string): Promise<RRHHSnapshot> 
   }
 }
 
-// ── Guardar RRHH en Supabase ──────────────────────────────────
+// ── Guardar RRHH en Supabase vía API ──────────────────────────
 export async function saveRRHHToSupabase(date: string, data: RRHHSnapshot): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from("rrhh_data")
-      .upsert(
-        {
-          date,
-          colon_programados: data.colon.programados,
-          colon_presentes: data.colon.presentes,
-          serrano_programados: data.serrano.programados,
-          serrano_presentes: data.serrano.presentes,
-          peron_programados: data.peron.programados,
-          peron_presentes: data.peron.presentes,
-          san_martin_programados: data.sanMartin.programados,
-          san_martin_presentes: data.sanMartin.presentes,
-          virtual_programados: data.virtual.programados,
-          virtual_presentes: data.virtual.presentes,
-        },
-        { onConflict: "date" }
-      );
+    const res = await fetch("/api/rrhh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, data }),
+    });
 
-    if (error) throw error;
-    return true;
+    const json = await res.json();
+    return json.ok === true;
   } catch (error) {
     console.error("Error saving RRHH to Supabase:", error);
     return false;
@@ -212,16 +148,11 @@ export async function hasPeriodDataInSupabase(
   month: number
 ): Promise<boolean> {
   try {
-    const { data, error } = await supabase
-      .from("period_comparatives")
-      .select("id")
-      .eq("period_type", periodType)
-      .eq("year", year)
-      .eq("month", month)
-      .limit(1);
-
-    if (error) throw error;
-    return data && data.length > 0;
+    const res = await fetch(
+      `/api/period-comparatives?periodType=${periodType}&year=${year}&month=${month}`
+    );
+    const json = await res.json();
+    return json.data && json.data.length > 0;
   } catch (error) {
     console.error("Error checking period data in Supabase:", error);
     return false;
