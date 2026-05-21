@@ -413,53 +413,54 @@ export default function ComandosPage() {
       const prevYear = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
       const lastYear = config.currentYear - 1;
 
-      await Promise.all([
-        fetch("/api/period-comparatives", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            periodType: "mes_anterior",
-            year: prevYear,
-            month: prevMonth,
-            data: mesAnterior,
-          }),
+      // Fire and forget - no await, no error handling
+      fetch("/api/period-comparatives", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          periodType: "mes_anterior",
+          year: prevYear,
+          month: prevMonth,
+          data: mesAnterior,
         }),
-        fetch("/api/period-comparatives", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            periodType: "mismo_mes_aa",
-            year: lastYear,
-            month: config.currentMonth,
-            data: mismoMesAA,
-          }),
+      }).catch(() => {}); // Silently ignore errors
+
+      fetch("/api/period-comparatives", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          periodType: "mismo_mes_aa",
+          year: lastYear,
+          month: config.currentMonth,
+          data: mismoMesAA,
         }),
-        fetch("/api/period-comparatives", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            periodType: "acumulado_mtd",
-            year: config.currentYear,
-            month: config.currentMonth,
-            data: acumuladoMTD,
-          }),
+      }).catch(() => {}); // Silently ignore errors
+
+      fetch("/api/period-comparatives", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          periodType: "acumulado_mtd",
+          year: config.currentYear,
+          month: config.currentMonth,
+          data: acumuladoMTD,
         }),
-      ]);
+      }).catch(() => {}); // Silently ignore errors
     } catch (error) {
-      console.error("Error syncing to Supabase:", error);
+      // Silently ignore
     }
   }
 
   async function syncRRHHToSupabase() {
     try {
       const today = new Date().toISOString().split('T')[0];
-      await fetch("/api/rrhh", {
+      fetch("/api/rrhh", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date: today, data: rrhhAyer }),
-      });
+      }).catch(() => {}); // Silently ignore errors
     } catch (error) {
-      console.error("Error syncing RRHH to Supabase:", error);
+      // Silently ignore
     }
   }
 
