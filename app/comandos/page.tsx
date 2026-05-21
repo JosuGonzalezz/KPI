@@ -162,7 +162,7 @@ export default function ComandosPage() {
     setConfigLoading(false);
   }
 
-  // ── CSV Parsing (client-side preview) ─────────────────────
+  // ── CSV Parsing (client-side preview) ────────────────────��
   function parseCSVClient(raw: string): DailyRecord[] {
     // Eliminar BOM UTF-8 si está presente
     const clean = raw.replace(/^\uFEFF/, "").trim();
@@ -1251,7 +1251,7 @@ export default function ComandosPage() {
                       <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.colon, r.tipo)}</td>
                       <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.serrano, r.tipo)}</td>
                       <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.peron, r.tipo)}</td>
-                      <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.san_martin, r.tipo)}</td>
+                      <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.sanMartin, r.tipo)}</td>
                       <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.virtual, r.tipo)}</td>
                       <td className="px-4 py-1.5 text-right font-semibold text-white">{fmtNum(r.total, r.tipo)}</td>
                     </tr>
