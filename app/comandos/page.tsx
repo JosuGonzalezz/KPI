@@ -10,13 +10,13 @@ import { BRANCH_LABELS } from "@/lib/report-data";
 import type { DailyRecord, TipoMetrica } from "@/lib/report-data";
 import { ExportDataPDF } from "@/components/ExportDataPDF";
 import {
+  loadMesAnterior, saveMesAnterior,
+  loadMismoMesAA,  saveMismoMesAA,
+  loadAcumuladoMTD, saveAcumuladoMTD,
+  loadRRHHAyer, saveRRHHAyer,
   DEFAULT_PERIOD_SNAPSHOT, DEFAULT_RRHH_SNAPSHOT,
   type PeriodSnapshot, type RRHHSnapshot, type BranchBreakdown,
 } from "@/lib/report-session-store";
-import {
-  loadPeriodFromSupabase, savePeriodToSupabase,
-  loadRRHHFromSupabase, saveRRHHToSupabase,
-} from "@/lib/supabase-period-store";
 
 // ── Constantes ────────────────────────────────────────────────
 const MONTHS = [
@@ -95,38 +95,19 @@ export default function ComandosPage() {
   } | null>(null);
   const [uploadingFor, setUploadingFor] = useState<'prev' | 'same' | null>(null);
 
-  // ── Load config + period data from Supabase on mount ───────
+  // ── Load config + session data on mount ───────────────────
   useEffect(() => {
     fetch("/api/config")
       .then(r => r.json())
       .then((c: AppConfig) => setConfig(c))
       .catch(() => null);
     loadStoreStats();
-    loadPeriodData();
+    // Restore any data already entered this session
+    setMesAnterior(loadMesAnterior());
+    setMismoMesAA(loadMismoMesAA());
+    setAcumuladoMTD(loadAcumuladoMTD());
+    setRrhhAyer(loadRRHHAyer());
   }, []);
-
-  // ── Load period data from Supabase ─────────────────────────
-  async function loadPeriodData() {
-    try {
-      const prevMonth = config.currentMonth === 1 ? 12 : config.currentMonth - 1;
-      const prevYear = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
-      const lastYear = config.currentYear - 1;
-
-      const [mesAnt, mismoAA, acumMTD, rrhhData] = await Promise.all([
-        loadPeriodFromSupabase("mes_anterior", prevYear, prevMonth),
-        loadPeriodFromSupabase("mismo_mes_aa", lastYear, config.currentMonth),
-        loadPeriodFromSupabase("acumulado_mtd", config.currentYear, config.currentMonth),
-        loadRRHHFromSupabase(new Date().toISOString().split('T')[0]),
-      ]);
-
-      setMesAnterior(mesAnt);
-      setMismoMesAA(mismoAA);
-      setAcumuladoMTD(acumMTD);
-      setRrhhAyer(rrhhData);
-    } catch (error) {
-      console.error("Error loading period data:", error);
-    }
-  }
 
   // ── Store stats ────────────────────────────────────────────
   async function loadStoreStats() {
@@ -405,35 +386,80 @@ export default function ComandosPage() {
     }));
   }
 
-  async function handleSaveMTD() {
+  function handleSaveMTD() {
+    saveMesAnterior(mesAnterior);
+    saveMismoMesAA(mismoMesAA);
+    saveAcumuladoMTD(acumuladoMTD);
+    setMtdSaved(true);
+    setTimeout(() => setMtdSaved(false), 2500);
+    
+    // Guardar en Supabase en background (sin bloquear UI)
+    syncToSupabase();
+  }
+
+  function handleSaveRRHH() {
+    saveRRHHAyer(rrhhAyer);
+    setRrhhSaved(true);
+    setTimeout(() => setRrhhSaved(false), 2500);
+    
+    // Guardar en Supabase en background (sin bloquear UI)
+    syncRRHHToSupabase();
+  }
+
+  // ── Sync to Supabase in background ─────────────────────────
+  async function syncToSupabase() {
     try {
       const prevMonth = config.currentMonth === 1 ? 12 : config.currentMonth - 1;
       const prevYear = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
       const lastYear = config.currentYear - 1;
 
       await Promise.all([
-        savePeriodToSupabase("mes_anterior", prevYear, prevMonth, mesAnterior),
-        savePeriodToSupabase("mismo_mes_aa", lastYear, config.currentMonth, mismoMesAA),
-        savePeriodToSupabase("acumulado_mtd", config.currentYear, config.currentMonth, acumuladoMTD),
+        fetch("/api/period-comparatives", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            periodType: "mes_anterior",
+            year: prevYear,
+            month: prevMonth,
+            data: mesAnterior,
+          }),
+        }),
+        fetch("/api/period-comparatives", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            periodType: "mismo_mes_aa",
+            year: lastYear,
+            month: config.currentMonth,
+            data: mismoMesAA,
+          }),
+        }),
+        fetch("/api/period-comparatives", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            periodType: "acumulado_mtd",
+            year: config.currentYear,
+            month: config.currentMonth,
+            data: acumuladoMTD,
+          }),
+        }),
       ]);
-
-      setMtdSaved(true);
-      setTimeout(() => setMtdSaved(false), 2500);
     } catch (error) {
-      console.error("Error saving MTD data:", error);
-      alert("Error al guardar los datos");
+      console.error("Error syncing to Supabase:", error);
     }
   }
 
-  async function handleSaveRRHH() {
+  async function syncRRHHToSupabase() {
     try {
       const today = new Date().toISOString().split('T')[0];
-      await saveRRHHToSupabase(today, rrhhAyer);
-      setRrhhSaved(true);
-      setTimeout(() => setRrhhSaved(false), 2500);
+      await fetch("/api/rrhh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: today, data: rrhhAyer }),
+      });
     } catch (error) {
-      console.error("Error saving RRHH data:", error);
-      alert("Error al guardar los datos de RRHH");
+      console.error("Error syncing RRHH to Supabase:", error);
     }
   }
 
