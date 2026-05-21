@@ -10,13 +10,13 @@ import { BRANCH_LABELS } from "@/lib/report-data";
 import type { DailyRecord, TipoMetrica } from "@/lib/report-data";
 import { ExportDataPDF } from "@/components/ExportDataPDF";
 import {
-  loadMesAnterior, saveMesAnterior,
-  loadMismoMesAA,  saveMismoMesAA,
-  loadAcumuladoMTD, saveAcumuladoMTD,
-  loadRRHHAyer, saveRRHHAyer,
   DEFAULT_PERIOD_SNAPSHOT, DEFAULT_RRHH_SNAPSHOT,
   type PeriodSnapshot, type RRHHSnapshot, type BranchBreakdown,
 } from "@/lib/report-session-store";
+import {
+  loadPeriodFromSupabase, savePeriodToSupabase,
+  loadRRHHFromSupabase, saveRRHHToSupabase,
+} from "@/lib/supabase-period-store";
 
 // ── Constantes ────────────────────────────────────────────────
 const MONTHS = [
@@ -95,19 +95,38 @@ export default function ComandosPage() {
   } | null>(null);
   const [uploadingFor, setUploadingFor] = useState<'prev' | 'same' | null>(null);
 
-  // ── Load config + session data on mount ───────────────────
+  // ── Load config + period data from Supabase on mount ───────
   useEffect(() => {
     fetch("/api/config")
       .then(r => r.json())
       .then((c: AppConfig) => setConfig(c))
       .catch(() => null);
     loadStoreStats();
-    // Restore any data already entered this session
-    setMesAnterior(loadMesAnterior());
-    setMismoMesAA(loadMismoMesAA());
-    setAcumuladoMTD(loadAcumuladoMTD());
-    setRrhhAyer(loadRRHHAyer());
+    loadPeriodData();
   }, []);
+
+  // ── Load period data from Supabase ─────────────────────────
+  async function loadPeriodData() {
+    try {
+      const prevMonth = config.currentMonth === 1 ? 12 : config.currentMonth - 1;
+      const prevYear = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
+      const lastYear = config.currentYear - 1;
+
+      const [mesAnt, mismoAA, acumMTD, rrhhData] = await Promise.all([
+        loadPeriodFromSupabase("mes_anterior", prevYear, prevMonth),
+        loadPeriodFromSupabase("mismo_mes_aa", lastYear, config.currentMonth),
+        loadPeriodFromSupabase("acumulado_mtd", config.currentYear, config.currentMonth),
+        loadRRHHFromSupabase(new Date().toISOString().split('T')[0]),
+      ]);
+
+      setMesAnterior(mesAnt);
+      setMismoMesAA(mismoAA);
+      setAcumuladoMTD(acumMTD);
+      setRrhhAyer(rrhhData);
+    } catch (error) {
+      console.error("Error loading period data:", error);
+    }
+  }
 
   // ── Store stats ────────────────────────────────────────────
   async function loadStoreStats() {
@@ -386,18 +405,36 @@ export default function ComandosPage() {
     }));
   }
 
-  function handleSaveMTD() {
-    saveMesAnterior(mesAnterior);
-    saveMismoMesAA(mismoMesAA);
-    saveAcumuladoMTD(acumuladoMTD);
-    setMtdSaved(true);
-    setTimeout(() => setMtdSaved(false), 2500);
+  async function handleSaveMTD() {
+    try {
+      const prevMonth = config.currentMonth === 1 ? 12 : config.currentMonth - 1;
+      const prevYear = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
+      const lastYear = config.currentYear - 1;
+
+      await Promise.all([
+        savePeriodToSupabase("mes_anterior", prevYear, prevMonth, mesAnterior),
+        savePeriodToSupabase("mismo_mes_aa", lastYear, config.currentMonth, mismoMesAA),
+        savePeriodToSupabase("acumulado_mtd", config.currentYear, config.currentMonth, acumuladoMTD),
+      ]);
+
+      setMtdSaved(true);
+      setTimeout(() => setMtdSaved(false), 2500);
+    } catch (error) {
+      console.error("Error saving MTD data:", error);
+      alert("Error al guardar los datos");
+    }
   }
 
-  function handleSaveRRHH() {
-    saveRRHHAyer(rrhhAyer);
-    setRrhhSaved(true);
-    setTimeout(() => setRrhhSaved(false), 2500);
+  async function handleSaveRRHH() {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      await saveRRHHToSupabase(today, rrhhAyer);
+      setRrhhSaved(true);
+      setTimeout(() => setRrhhSaved(false), 2500);
+    } catch (error) {
+      console.error("Error saving RRHH data:", error);
+      alert("Error al guardar los datos de RRHH");
+    }
   }
 
   function updateRRHH(branch: keyof RRHHSnapshot, field: 'programados' | 'presentes', raw: string) {
@@ -426,7 +463,7 @@ export default function ComandosPage() {
         <Settings2 className="w-4 h-4 text-blue-300" />
         <h1 className="text-lg font-bold text-white">Panel de Comandos</h1>
         <span className="ml-auto text-[11px] text-slate-500">
-          Preparado para Supabase &mdash; almacenamiento local activo
+          Supabase &mdash; almacenamiento persistente activo
         </span>
         {storeStats.length > 0 && (
           <ExportDataPDF year={config.currentYear} month={config.currentMonth} day={config.currentDay} />
