@@ -2,7 +2,6 @@ import { DashboardHeader }  from "@/components/dashboard/DashboardHeader";
 import { AlertsBar }        from "@/components/dashboard/AlertsBar";
 import { KPICards }         from "@/components/dashboard/KPICards";
 import { MonthlyGoals }     from "@/components/dashboard/MonthlyGoals";
-import { DailyProgress }    from "@/components/dashboard/DailyProgress";
 import { BranchTable }      from "@/components/dashboard/BranchTable";
 import { PaymentMix }       from "@/components/dashboard/PaymentMix";
 import { ShrinkagePanel }   from "@/components/dashboard/ShrinkagePanel";
@@ -30,16 +29,13 @@ export default function DashboardPage() {
         {/* Row 1: KPI Cards MTD acumuladas */}
         <KPICards />
 
-        {/* Row 2: Progresión diaria + Gauge Objetivos — mismo alto */}
-        <div className="grid grid-cols-2 gap-3 items-stretch">
-          <DailyProgress />
-          <MonthlyGoals
-            currentDay={currentDay}
-            currentMonth={currentMonth}
-            currentYear={currentYear}
-            daysInMonth={daysInMonth}
-          />
-        </div>
+        {/* Row 2: Avance por sucursal — Actual vs Objetivo (Mismo mes AA) */}
+        <MonthlyGoals
+          currentDay={currentDay}
+          currentMonth={currentMonth}
+          currentYear={currentYear}
+          daysInMonth={daysInMonth}
+        />
 
         {/* Row 4: Tabla comparativa sucursales */}
         <BranchTable />
