@@ -9,6 +9,14 @@ import {
 import { BRANCH_LABELS } from "@/lib/report-data";
 import type { DailyRecord, TipoMetrica } from "@/lib/report-data";
 import { ExportDataPDF } from "@/components/ExportDataPDF";
+import {
+  loadMesAnterior, saveMesAnterior,
+  loadMismoMesAA,  saveMismoMesAA,
+  loadAcumuladoMTD, saveAcumuladoMTD,
+  loadRRHHAyer, saveRRHHAyer,
+  DEFAULT_PERIOD_SNAPSHOT, DEFAULT_RRHH_SNAPSHOT,
+  type PeriodSnapshot, type RRHHSnapshot, type BranchBreakdown,
+} from "@/lib/report-session-store";
 
 // ── Constantes ────────────────────────────────────────────────
 const MONTHS = [
@@ -70,6 +78,15 @@ export default function ComandosPage() {
   const [allRecords, setAllRecords] = useState<DailyRecord[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // ── Session-based manual data state ───────────────────────
+  const [mesAnterior,  setMesAnterior]  = useState<PeriodSnapshot>(DEFAULT_PERIOD_SNAPSHOT);
+  const [mismoMesAA,   setMismoMesAA]   = useState<PeriodSnapshot>(DEFAULT_PERIOD_SNAPSHOT);
+  const [acumuladoMTD, setAcumuladoMTD] = useState<PeriodSnapshot>(DEFAULT_PERIOD_SNAPSHOT);
+  const [rrhhAyer,     setRrhhAyer]     = useState<RRHHSnapshot>(DEFAULT_RRHH_SNAPSHOT);
+  const [mtdSaved,   setMtdSaved]   = useState(false);
+  const [rrhhSaved,  setRrhhSaved]  = useState(false);
+  const [activePeriodTab, setActivePeriodTab] = useState<'mesAnt' | 'mismoAA' | 'acumMTD'>('mesAnt');
+
   // ── Monthly totals upload state ────────────────────────────
   const [monthlyFile, setMonthlyFile] = useState<File | null>(null);
   const [monthlyUploading, setMonthlyUploading] = useState(false);
@@ -78,13 +95,18 @@ export default function ComandosPage() {
   } | null>(null);
   const [uploadingFor, setUploadingFor] = useState<'prev' | 'same' | null>(null);
 
-  // ── Load config on mount ───────────────────────────────────
+  // ── Load config + session data on mount ───────────────────
   useEffect(() => {
     fetch("/api/config")
       .then(r => r.json())
       .then((c: AppConfig) => setConfig(c))
       .catch(() => null);
     loadStoreStats();
+    // Restore any data already entered this session
+    setMesAnterior(loadMesAnterior());
+    setMismoMesAA(loadMismoMesAA());
+    setAcumuladoMTD(loadAcumuladoMTD());
+    setRrhhAyer(loadRRHHAyer());
   }, []);
 
   // ── Store stats ────────────────────────────────────────────
@@ -140,7 +162,7 @@ export default function ComandosPage() {
     setConfigLoading(false);
   }
 
-  // ── CSV Parsing (client-side preview) ─────────────────────
+  // ── CSV Parsing (client-side preview) ────────────────────��
   function parseCSVClient(raw: string): DailyRecord[] {
     // Eliminar BOM UTF-8 si está presente
     const clean = raw.replace(/^\uFEFF/, "").trim();
@@ -346,6 +368,44 @@ export default function ComandosPage() {
     
     setMonthlyUploading(false);
     setUploadingFor(null);
+  }
+
+  // ── Session store handlers ─────────────────────────────────
+
+  /** Actualiza un campo de BranchBreakdown dentro de un PeriodSnapshot */
+  function updateBreakdown(
+    setter: React.Dispatch<React.SetStateAction<PeriodSnapshot>>,
+    metric: keyof PeriodSnapshot,
+    field: keyof BranchBreakdown,
+    raw: string,
+  ) {
+    const val = raw === "" ? 0 : parseFloat(raw.replace(/\./g, "").replace(",", ".")) || 0;
+    setter(prev => ({
+      ...prev,
+      [metric]: { ...prev[metric], [field]: Math.round(val) },
+    }));
+  }
+
+  function handleSaveMTD() {
+    saveMesAnterior(mesAnterior);
+    saveMismoMesAA(mismoMesAA);
+    saveAcumuladoMTD(acumuladoMTD);
+    setMtdSaved(true);
+    setTimeout(() => setMtdSaved(false), 2500);
+  }
+
+  function handleSaveRRHH() {
+    saveRRHHAyer(rrhhAyer);
+    setRrhhSaved(true);
+    setTimeout(() => setRrhhSaved(false), 2500);
+  }
+
+  function updateRRHH(branch: keyof RRHHSnapshot, field: 'programados' | 'presentes', raw: string) {
+    const val = Math.max(0, parseInt(raw, 10) || 0);
+    setRrhhAyer(prev => ({
+      ...prev,
+      [branch]: { ...prev[branch], [field]: val },
+    }));
   }
 
   // ── Preview agrupado ───────────────────────────────────────
@@ -742,6 +802,243 @@ export default function ComandosPage() {
           </section>
         </div>
 
+        {/* ══════════════════════════════════════════════════════
+            SECCIÓN A — Comparativos de períodos (sessionStorage)
+        ══════════════════════════════════════════════════════ */}
+        <section className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 text-amber-300" />
+            <h2 className="text-sm font-semibold text-white">Comparativos de períodos — carga manual</h2>
+            <span className="ml-auto text-[10px] text-amber-400/70 border border-amber-500/30 bg-amber-500/10 rounded-full px-2 py-0.5">
+              sesión &middot; se limpia al cerrar
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400 -mt-2">
+            Ingresá los totales de cada período para que el dashboard los use en los comparativos.
+            Los datos quedan guardados en la sesión activa del navegador.
+          </p>
+
+          {/* Period tab switcher */}
+          {(() => {
+            const prevMonth = config.currentMonth === 1 ? 12 : config.currentMonth - 1;
+            const prevYear  = config.currentMonth === 1 ? config.currentYear - 1 : config.currentYear;
+            const tabs: { key: typeof activePeriodTab; label: string; sub: string; color: string }[] = [
+              { key: "mesAnt",   label: "Mes anterior",         sub: `${MONTHS[prevMonth - 1]} ${prevYear}`,              color: "#3b82f6" },
+              { key: "mismoAA",  label: "Mismo mes año ant.",   sub: `${MONTHS[config.currentMonth - 1]} ${config.currentYear - 1}`, color: "#10b981" },
+              { key: "acumMTD",  label: "Acumulado MTD actual", sub: `${MONTHS[config.currentMonth - 1]} ${config.currentYear} — días 1–${config.currentDay}`, color: "#f59e0b" },
+            ];
+
+            const periodMap: Record<typeof activePeriodTab, { state: PeriodSnapshot; setter: React.Dispatch<React.SetStateAction<PeriodSnapshot>> }> = {
+              mesAnt:  { state: mesAnterior,  setter: setMesAnterior },
+              mismoAA: { state: mismoMesAA,   setter: setMismoMesAA  },
+              acumMTD: { state: acumuladoMTD, setter: setAcumuladoMTD },
+            };
+
+            const metrics: { key: keyof PeriodSnapshot; label: string; prefix: string; isCurrency: boolean }[] = [
+              { key: "facturacion", label: "Facturación",        prefix: "$", isCurrency: true  },
+              { key: "clientes",    label: "Clientes",           prefix: "",  isCurrency: false },
+              { key: "producto",    label: "Productos",          prefix: "",  isCurrency: false },
+            ];
+
+            const BRANCH_ORDER: { key: keyof BranchBreakdown; label: string }[] = [
+              { key: "total",     label: "Total cadena" },
+              { key: "colon",     label: "Colón"        },
+              { key: "serrano",   label: "Serrano"      },
+              { key: "peron",     label: "Perón"        },
+              { key: "sanMartin", label: "San Martín"   },
+              { key: "virtual",   label: "Virtual"      },
+            ];
+
+            const { state, setter } = periodMap[activePeriodTab];
+            const activeTab = tabs.find(t => t.key === activePeriodTab)!;
+
+            return (
+              <>
+                {/* Tabs */}
+                <div className="flex gap-2 flex-wrap">
+                  {tabs.map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => setActivePeriodTab(t.key)}
+                      className={`flex flex-col items-start px-3 py-2 rounded-lg border text-left transition-colors min-w-[180px]
+                        ${activePeriodTab === t.key
+                          ? "border-transparent text-white"
+                          : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/8 hover:text-white"
+                        }`}
+                      style={activePeriodTab === t.key ? { background: `${t.color}22`, borderColor: `${t.color}55` } : {}}
+                    >
+                      <span className="text-xs font-semibold">{t.label}</span>
+                      <span className="text-[10px] opacity-60 mt-0.5">{t.sub}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Metric grid for active period */}
+                <div className="grid grid-cols-3 gap-4">
+                  {metrics.map(metric => (
+                    <div key={metric.key} className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col gap-3">
+                      {/* Metric header */}
+                      <p className="text-[10px] uppercase tracking-wider font-semibold"
+                        style={{ color: activeTab.color }}>
+                        {metric.label}
+                      </p>
+
+                      {/* Branch inputs */}
+                      <div className="flex flex-col gap-2">
+                        {BRANCH_ORDER.map((branch, bi) => (
+                          <div key={branch.key} className={`flex items-center gap-2 ${bi === 0 ? "pb-2 border-b border-white/10 mb-1" : ""}`}>
+                            <span className={`text-[11px] w-24 shrink-0 ${bi === 0 ? "font-bold text-white" : "text-slate-400"}`}>
+                              {branch.label}
+                            </span>
+                            <div className="relative flex-1">
+                              {metric.isCurrency && (
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">$</span>
+                              )}
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={state[metric.key][branch.key] === 0 ? "" : state[metric.key][branch.key].toLocaleString("es-AR")}
+                                onChange={e => updateBreakdown(setter, metric.key, branch.key, e.target.value)}
+                                placeholder="0"
+                                className={`w-full bg-white/8 border border-white/15 rounded-lg py-1.5 text-right text-xs text-white placeholder-slate-600
+                                  focus:outline-none focus:border-white/40 focus:bg-white/12 transition-colors tabular-nums
+                                  ${metric.isCurrency ? "pr-2.5 pl-5" : "px-2.5"}
+                                  ${bi === 0 ? "font-semibold" : ""}`}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Save button */}
+                <div className="flex items-center gap-3 pt-1">
+                  <button
+                    onClick={handleSaveMTD}
+                    className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
+                    style={{
+                      background: mtdSaved ? "#16a34a" : activeTab.color,
+                      color: "#fff",
+                    }}
+                  >
+                    {mtdSaved
+                      ? <><CheckCircle2 className="w-4 h-4" /> Datos guardados en sesión</>
+                      : <><CheckCircle2 className="w-4 h-4" /> Guardar todos los períodos</>
+                    }
+                  </button>
+                  <p className="text-[10px] text-slate-500">
+                    Guardá después de completar los 3 períodos para que el dashboard los use.
+                  </p>
+                </div>
+              </>
+            );
+          })()}
+        </section>
+
+        {/* ══════════════════════════════════════════════════════
+            SECCIÓN B — Dotación y Ausentismo Ayer (sessionStorage)
+        ══════════════════════════════════════════════════════ */}
+        <section className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <Database className="w-4 h-4 text-cyan-300" />
+            <h2 className="text-sm font-semibold text-white">Dotaci&oacute;n y Ausentismo &mdash; Ayer</h2>
+            <span className="ml-auto text-[10px] text-amber-400/70 border border-amber-500/30 bg-amber-500/10 rounded-full px-2 py-0.5">
+              sesi&oacute;n &middot; se limpia al cerrar
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400 -mt-2">
+            Ingres&aacute; el personal programado y presente de ayer por sucursal. El ausentismo se calcula autom&aacute;ticamente.
+          </p>
+
+          <div className="overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-[10px] uppercase tracking-wider text-slate-400"
+                  style={{ background: "#0d1b35" }}>
+                  <th className="px-4 py-2.5 text-left font-semibold">Sucursal</th>
+                  <th className="px-4 py-2.5 text-center font-semibold">Programados</th>
+                  <th className="px-4 py-2.5 text-center font-semibold">Presentes</th>
+                  <th className="px-4 py-2.5 text-center font-semibold">Ausentismo %</th>
+                  <th className="px-4 py-2.5 text-center font-semibold">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(Object.entries(BRANCH_LABELS) as [keyof RRHHSnapshot, string][]).map(([branchKey, branchLabel]) => {
+                  const row = rrhhAyer[branchKey];
+                  const ausentismo = row.programados > 0
+                    ? ((row.programados - row.presentes) / row.programados) * 100
+                    : 0;
+                  const estado = ausentismo >= 15 ? "CRÍTICO" : ausentismo >= 8 ? "ATENC." : "OK";
+                  const estadoColor = ausentismo >= 15
+                    ? "bg-red-500/20 text-red-300 border-red-500/30"
+                    : ausentismo >= 8
+                    ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                    : "bg-green-500/20 text-green-300 border-green-500/30";
+                  return (
+                    <tr key={branchKey} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                      <td className="px-4 py-2.5 font-semibold text-white">{branchLabel}</td>
+                      <td className="px-4 py-2.5">
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.programados || ""}
+                          onChange={e => updateRRHH(branchKey, "programados", e.target.value)}
+                          placeholder="0"
+                          className="w-full bg-white/8 border border-white/15 rounded-lg px-3 py-1.5 text-center text-xs text-white
+                            placeholder-slate-600 focus:outline-none focus:border-white/40 focus:bg-white/12 transition-colors tabular-nums"
+                        />
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <input
+                          type="number"
+                          min={0}
+                          value={row.presentes || ""}
+                          onChange={e => updateRRHH(branchKey, "presentes", e.target.value)}
+                          placeholder="0"
+                          className="w-full bg-white/8 border border-white/15 rounded-lg px-3 py-1.5 text-center text-xs text-white
+                            placeholder-slate-600 focus:outline-none focus:border-white/40 focus:bg-white/12 transition-colors tabular-nums"
+                        />
+                      </td>
+                      <td className="px-4 py-2.5 text-center">
+                        <span className={`text-sm font-bold tabular-nums ${
+                          ausentismo >= 15 ? "text-red-400" : ausentismo >= 8 ? "text-amber-400" : "text-green-400"
+                        }`}>
+                          {row.programados > 0 ? ausentismo.toFixed(1) + "%" : "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-center">
+                        {row.programados > 0 && (
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] font-bold border ${estadoColor}`}>
+                            {estado}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              onClick={handleSaveRRHH}
+              className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
+              style={{ background: rrhhSaved ? "#16a34a" : "#0891b2", color: "#fff" }}
+            >
+              {rrhhSaved
+                ? <><CheckCircle2 className="w-4 h-4" /> Datos guardados en sesi&oacute;n</>
+                : <><CheckCircle2 className="w-4 h-4" /> Guardar dotaci&oacute;n</>
+              }
+            </button>
+            <p className="text-[10px] text-slate-500">
+              El panel del dashboard se actualizar&aacute; al recargar con estos datos.
+            </p>
+          </div>
+        </section>
+
         {/* ── Carga de CSV ─────────────────────────────────────── */}
         <section className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col gap-4">
           <div className="flex items-center gap-2 mb-1">
@@ -954,7 +1251,7 @@ export default function ComandosPage() {
                       <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.colon, r.tipo)}</td>
                       <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.serrano, r.tipo)}</td>
                       <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.peron, r.tipo)}</td>
-                      <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.san_martin, r.tipo)}</td>
+                      <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.sanMartin, r.tipo)}</td>
                       <td className="px-4 py-1.5 text-right text-white">{fmtNum(r.virtual, r.tipo)}</td>
                       <td className="px-4 py-1.5 text-right font-semibold text-white">{fmtNum(r.total, r.tipo)}</td>
                     </tr>

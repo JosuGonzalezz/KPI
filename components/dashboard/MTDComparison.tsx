@@ -11,7 +11,12 @@ import {
   BRANCH_KEYS, BRANCH_LABELS,
   type BranchKey,
 } from "@/lib/report-data";
-import { useState } from "react";
+import {
+  loadAcumuladoMTD, loadMismoMesAA,
+  hasMTDData,
+  type BranchBreakdown,
+} from "@/lib/report-session-store";
+import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -167,7 +172,15 @@ function CumulChart({ tab }: { tab: ChartTab }) {
 }
 
 // ── Branch Comparison Table ────────────────────────────────────
-function BranchCompTable() {
+type BranchCompTableProps = {
+  branchFact26: Record<BranchKey, number>;
+  branchFact25: Record<BranchKey, number>;
+  branchCli26:  Record<BranchKey, number>;
+  branchCli25:  Record<BranchKey, number>;
+  lastDay:      number;
+};
+
+function BranchCompTable({ branchFact26, branchFact25, branchCli26, branchCli25, lastDay }: BranchCompTableProps) {
   const branches = BRANCH_KEYS.filter(k => k !== 'virtual' || true);
 
   return (
@@ -187,20 +200,20 @@ function BranchCompTable() {
           </tr>
           <tr className="bg-slate-50 border-b border-border">
             <th className="px-3 py-1.5 text-left text-[9px] text-muted-foreground border-r border-slate-100" />
-            <th className="px-3 py-1.5 text-right text-[9px] text-muted-foreground">2026</th>
-            <th className="px-3 py-1.5 text-right text-[9px] text-muted-foreground">2025</th>
+            <th className="px-3 py-1.5 text-right text-[9px] text-muted-foreground">Actual</th>
+            <th className="px-3 py-1.5 text-right text-[9px] text-muted-foreground">AA</th>
             <th className="px-3 py-1.5 text-right text-[9px] text-muted-foreground">Var %</th>
-            <th className="px-3 py-1.5 text-right text-[9px] text-muted-foreground border-l border-slate-100">2026</th>
-            <th className="px-3 py-1.5 text-right text-[9px] text-muted-foreground">2025</th>
+            <th className="px-3 py-1.5 text-right text-[9px] text-muted-foreground border-l border-slate-100">Actual</th>
+            <th className="px-3 py-1.5 text-right text-[9px] text-muted-foreground">AA</th>
             <th className="px-3 py-1.5 text-right text-[9px] text-muted-foreground">Var %</th>
           </tr>
         </thead>
         <tbody>
           {(branches as BranchKey[]).map(branch => {
-            const f26 = MTD_BRANCH_2026_FACT[branch];
-            const f25 = MTD_BRANCH_2025_FACT[branch];
-            const c26 = MTD_BRANCH_2026_CLI[branch];
-            const c25 = MTD_BRANCH_2025_CLI[branch];
+            const f26 = branchFact26[branch];
+            const f25 = branchFact25[branch];
+            const c26 = branchCli26[branch];
+            const c25 = branchCli25[branch];
             const deltaF = deltaPct(f26, f25);
             const deltaC = deltaPct(c26, c25);
             return (
@@ -227,10 +240,10 @@ function BranchCompTable() {
           })}
           {/* Total row */}
           {(() => {
-            const totalF26 = Object.values(MTD_BRANCH_2026_FACT).reduce((a, b) => a + b, 0);
-            const totalF25 = Object.values(MTD_BRANCH_2025_FACT).reduce((a, b) => a + b, 0);
-            const totalC26 = Object.values(MTD_BRANCH_2026_CLI).reduce((a, b) => a + b, 0);
-            const totalC25 = Object.values(MTD_BRANCH_2025_CLI).reduce((a, b) => a + b, 0);
+            const totalF26 = Object.values(branchFact26).reduce((a, b) => a + b, 0);
+            const totalF25 = Object.values(branchFact25).reduce((a, b) => a + b, 0);
+            const totalC26 = Object.values(branchCli26).reduce((a, b) => a + b, 0);
+            const totalC25 = Object.values(branchCli25).reduce((a, b) => a + b, 0);
             const dF = deltaPct(totalF26, totalF25);
             const dC = deltaPct(totalC26, totalC25);
             return (
@@ -261,13 +274,60 @@ function BranchCompTable() {
   );
 }
 
+// ── Helper: convert BranchBreakdown to BranchKey record ───────
+function breakdownToBranchRecord(bd: BranchBreakdown): Record<BranchKey, number> {
+  return {
+    colon:     bd.colon,
+    serrano:   bd.serrano,
+    peron:     bd.peron,
+    sanMartin: bd.sanMartin,
+    virtual:   bd.virtual,
+  };
+}
+
 // ── Main Component ─────────────────────────────────────────────
 export function MTDComparison() {
   const [chartTab, setChartTab] = useState<ChartTab>("Facturacion");
 
-  const deltaFact = deltaPct(MTD_2026.facturacion, MTD_2025.facturacion);
-  const deltaCli  = deltaPct(MTD_2026.clientes,    MTD_2025.clientes);
-  const deltaProd = deltaPct(MTD_2026.producto,     MTD_2025.producto);
+  // Session-aware MTD values — override computed values when manual data exists
+  const [mtd26Fact, setMtd26Fact] = useState(MTD_2026.facturacion);
+  const [mtd26Cli,  setMtd26Cli]  = useState(MTD_2026.clientes);
+  const [mtd26Prod, setMtd26Prod] = useState(MTD_2026.producto);
+  const [mtd25Fact, setMtd25Fact] = useState(MTD_2025.facturacion);
+  const [mtd25Cli,  setMtd25Cli]  = useState(MTD_2025.clientes);
+  const [mtd25Prod, setMtd25Prod] = useState(MTD_2025.producto);
+  const [brFact26,  setBrFact26]  = useState<Record<BranchKey, number>>(MTD_BRANCH_2026_FACT);
+  const [brFact25,  setBrFact25]  = useState<Record<BranchKey, number>>(MTD_BRANCH_2025_FACT);
+  const [brCli26,   setBrCli26]   = useState<Record<BranchKey, number>>(MTD_BRANCH_2026_CLI);
+  const [brCli25,   setBrCli25]   = useState<Record<BranchKey, number>>(MTD_BRANCH_2025_CLI);
+  const [usingSessionData, setUsingSessionData] = useState(false);
+
+  useEffect(() => {
+    if (!hasMTDData()) return;
+    const acum = loadAcumuladoMTD();
+    const aa   = loadMismoMesAA();
+
+    setMtd26Fact(acum.facturacion.total || MTD_2026.facturacion);
+    setMtd26Cli( acum.clientes.total    || MTD_2026.clientes);
+    setMtd26Prod(acum.producto.total    || MTD_2026.producto);
+    setMtd25Fact(aa.facturacion.total   || MTD_2025.facturacion);
+    setMtd25Cli( aa.clientes.total      || MTD_2025.clientes);
+    setMtd25Prod(aa.producto.total      || MTD_2025.producto);
+
+    // Branch breakdowns (only override if sum > 0)
+    const sumBranch = (bd: BranchBreakdown) =>
+      bd.colon + bd.serrano + bd.peron + bd.sanMartin + bd.virtual;
+    if (sumBranch(acum.facturacion) > 0) setBrFact26(breakdownToBranchRecord(acum.facturacion));
+    if (sumBranch(aa.facturacion)   > 0) setBrFact25(breakdownToBranchRecord(aa.facturacion));
+    if (sumBranch(acum.clientes)    > 0) setBrCli26(breakdownToBranchRecord(acum.clientes));
+    if (sumBranch(aa.clientes)      > 0) setBrCli25(breakdownToBranchRecord(aa.clientes));
+
+    setUsingSessionData(true);
+  }, []);
+
+  const deltaFact = deltaPct(mtd26Fact, mtd25Fact);
+  const deltaCli  = deltaPct(mtd26Cli,  mtd25Cli);
+  const deltaProd = deltaPct(mtd26Prod, mtd25Prod);
 
   const tabs: { key: ChartTab; label: string; color: string }[] = [
     { key: "Facturacion", label: "Facturación",  color: "#1d4ed8" },
@@ -303,26 +363,37 @@ export function MTDComparison() {
       </div>
 
       <div className="p-3 flex flex-col gap-3">
+        {/* Session data indicator */}
+        {usingSessionData && (
+          <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+            <p className="text-[10px] text-amber-300">
+              Mostrando datos cargados manualmente en esta sesi&oacute;n &mdash; actualiz&aacute; los valores en{" "}
+              <a href="/comandos" className="underline font-semibold hover:text-amber-200">Comandos</a> si cambian.
+            </p>
+          </div>
+        )}
+
         {/* KPI Comparison Cards */}
         <div className="grid grid-cols-3 gap-3">
           <KPICompCard
             label="Facturación acumulada MTD"
-            val2026={fmtFact(MTD_2026.facturacion)}
-            val2025={fmtFact(MTD_2025.facturacion)}
+            val2026={fmtFact(mtd26Fact)}
+            val2025={fmtFact(mtd25Fact)}
             delta={deltaFact}
             accent="#1d4ed8"
           />
           <KPICompCard
             label="Clientes (transacciones) MTD"
-            val2026={fmtNum(MTD_2026.clientes)}
-            val2025={fmtNum(MTD_2025.clientes)}
+            val2026={fmtNum(mtd26Cli)}
+            val2025={fmtNum(mtd25Cli)}
             delta={deltaCli}
             accent="#0891b2"
           />
           <KPICompCard
             label="Productos vendidos MTD"
-            val2026={fmtNum(MTD_2026.producto)}
-            val2025={fmtNum(MTD_2025.producto)}
+            val2026={fmtNum(mtd26Prod)}
+            val2025={fmtNum(mtd25Prod)}
             delta={deltaProd}
             accent="#0f766e"
           />
@@ -367,7 +438,13 @@ export function MTDComparison() {
                 Por Sucursal &mdash; MTD días 1&ndash;{LAST_DAY_2026}
               </p>
             </div>
-            <BranchCompTable />
+            <BranchCompTable
+              branchFact26={brFact26}
+              branchFact25={brFact25}
+              branchCli26={brCli26}
+              branchCli25={brCli25}
+              lastDay={LAST_DAY_2026}
+            />
           </div>
         </div>
       </div>

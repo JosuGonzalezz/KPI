@@ -1,6 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { branchRows, totalRow, REPORT_DATE, type BranchRow } from "@/lib/mock-data";
+import {
+  loadAcumuladoMTD, loadMismoMesAA, loadMesAnterior,
+  hasMTDData,
+  type BranchBreakdown,
+} from "@/lib/report-session-store";
 
 /** Locale-free number formatting to avoid SSR/client hydration mismatch */
 function sepMiles(n: number): string {
@@ -122,6 +128,108 @@ function GroupTh({ children, span, color }: { children: React.ReactNode; span: n
 }
 
 export function BranchTable() {
+  const [rows, setRows] = useState<BranchRow[]>(branchRows);
+  const [total, setTotal] = useState<BranchRow>(totalRow);
+  const [usingSessionData, setUsingSessionData] = useState(false);
+
+  // Helper: build branch row from breakdown
+  const buildBranchRow = (
+    name: string,
+    facBD: BranchBreakdown,
+    cliBD: BranchBreakdown,
+    proBD: BranchBreakdown,
+    facAA: number,
+    cliAA: number,
+    proAA: number,
+    facAnt: number,
+    cliAnt: number,
+  ): BranchRow => {
+    const branchKey = name.toLowerCase() === "colón" ? "colon"
+                    : name.toLowerCase() === "serrano" ? "serrano"
+                    : name.toLowerCase() === "perón" ? "peron"
+                    : name.toLowerCase() === "san martín" ? "sanMartin"
+                    : name.toLowerCase() === "virtual" ? "virtual"
+                    : "colon";
+    const fac = facBD[branchKey] || 0;
+    const cli = cliBD[branchKey] || 0;
+    const pro = proBD[branchKey] || 0;
+    return {
+      name,
+      facturacion: fac,
+      pctTotal: 0, // calc later
+      vsMesAnt: facAnt > 0 ? ((fac - facAnt) / facAnt) * 100 : 0,
+      vsAA:     facAA  > 0 ? ((fac - facAA)  / facAA)  * 100 : 0,
+      clientes: cli,
+      pctTotalCli: 0, // calc later
+      vsMesAntCli: cliAnt > 0 ? ((cli - cliAnt) / cliAnt) * 100 : 0,
+      vsAACli:     cliAA  > 0 ? ((cli - cliAA)  / cliAA)  * 100 : 0,
+      ticketProm: cli > 0 ? fac / cli : 0,
+      vsAATicket: 0,
+      productos: pro,
+      changoProm: 0,
+      vsMesAntChango: 0,
+      mts: null,
+      factPorMt: null,
+      estado: "green" as const,
+    };
+  };
+
+  useEffect(() => {
+    if (!hasMTDData()) return;
+    const acum = loadAcumuladoMTD();
+    const aa   = loadMismoMesAA();
+    const ant  = loadMesAnterior();
+
+    // Check if we have actual data
+    const sumBreakdown = (bd: BranchBreakdown) =>
+      bd.colon + bd.serrano + bd.peron + bd.sanMartin + bd.virtual;
+    if (sumBreakdown(acum.facturacion) === 0 && sumBreakdown(acum.clientes) === 0)
+      return;
+
+    // Rebuild rows using session data + AA + mes anterior references
+    const newRows: BranchRow[] = [
+      buildBranchRow("Colón",      acum.facturacion, acum.clientes, acum.producto, aa.facturacion.colon,     aa.clientes.colon,     aa.producto.colon,     ant.facturacion.colon,     ant.clientes.colon),
+      buildBranchRow("Serrano",    acum.facturacion, acum.clientes, acum.producto, aa.facturacion.serrano,   aa.clientes.serrano,   aa.producto.serrano,   ant.facturacion.serrano,   ant.clientes.serrano),
+      buildBranchRow("Perón",      acum.facturacion, acum.clientes, acum.producto, aa.facturacion.peron,     aa.clientes.peron,     aa.producto.peron,     ant.facturacion.peron,     ant.clientes.peron),
+      buildBranchRow("San Martín", acum.facturacion, acum.clientes, acum.producto, aa.facturacion.sanMartin, aa.clientes.sanMartin, aa.producto.sanMartin, ant.facturacion.sanMartin, ant.clientes.sanMartin),
+      buildBranchRow("Virtual",    acum.facturacion, acum.clientes, acum.producto, aa.facturacion.virtual,   aa.clientes.virtual,   aa.producto.virtual,   ant.facturacion.virtual,   ant.clientes.virtual),
+    ];
+
+    // Calculate totals and percentages
+    const totalFac = newRows.reduce((a, r) => a + r.facturacion, 0);
+    const totalCli = newRows.reduce((a, r) => a + r.clientes, 0);
+    const totalPro = newRows.reduce((a, r) => a + r.productos, 0);
+    const rowsWithPct = newRows.map(r => ({
+      ...r,
+      pctTotal: totalFac > 0 ? (r.facturacion / totalFac) * 100 : 0,
+      pctTotalCli: totalCli > 0 ? (r.clientes / totalCli) * 100 : 0,
+    }));
+
+    const newTotal: BranchRow = {
+      name: "Total Cadena",
+      facturacion: totalFac,
+      clientes: totalCli,
+      productos: totalPro,
+      pctTotal: 100,
+      pctTotalCli: 100,
+      vsMesAnt:    ant.facturacion.total > 0 ? ((totalFac - ant.facturacion.total) / ant.facturacion.total) * 100 : 0,
+      vsAA:        aa.facturacion.total  > 0 ? ((totalFac - aa.facturacion.total)  / aa.facturacion.total)  * 100 : 0,
+      vsMesAntCli: ant.clientes.total    > 0 ? ((totalCli - ant.clientes.total)    / ant.clientes.total)    * 100 : 0,
+      vsAACli:     aa.clientes.total     > 0 ? ((totalCli - aa.clientes.total)     / aa.clientes.total)     * 100 : 0,
+      ticketProm: totalCli > 0 ? totalFac / totalCli : 0,
+      vsAATicket: 0,
+      changoProm: 0,
+      vsMesAntChango: 0,
+      mts: null,
+      factPorMt: null,
+      estado: "green" as const,
+    };
+
+    setRows(rowsWithPct);
+    setTotal(newTotal);
+    setUsingSessionData(true);
+  }, []);
+
   return (
     <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
       {/* Header */}
@@ -129,9 +237,16 @@ export function BranchTable() {
         className="px-4 py-2.5 border-b border-border flex items-center justify-between"
         style={{ background: "#0d1b35" }}
       >
-        <p className="text-[11px] uppercase tracking-wider text-blue-300 font-semibold">
-          Comparativo de Sucursales &mdash; acumulado al {REPORT_DATE}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-[11px] uppercase tracking-wider text-blue-300 font-semibold">
+            Comparativo de Sucursales &mdash; acumulado al {REPORT_DATE}
+          </p>
+          {usingSessionData && (
+            <span className="text-[9px] text-amber-400/80 border border-amber-500/30 bg-amber-500/10 rounded-full px-2 py-0.5">
+              sesi&oacute;n cargada
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-4 text-[10px] text-slate-400">
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />OK</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />Alerta</span>
@@ -173,8 +288,8 @@ export function BranchTable() {
             </tr>
           </thead>
           <tbody>
-            {branchRows.map((row) => <Row key={row.name} row={row} />)}
-            <Row row={totalRow} isTotal />
+            {rows.map((row) => <Row key={row.name} row={row} />)}
+            <Row row={total} isTotal />
           </tbody>
         </table>
       </div>
