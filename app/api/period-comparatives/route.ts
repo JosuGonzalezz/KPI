@@ -8,44 +8,54 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const periodType = searchParams.get("periodType") as "mes_anterior" | "mismo_mes_aa" | "acumulado_mtd" | null;
-    const year = searchParams.get("year") ? parseInt(searchParams.get("year")!) : null;
-    const month = searchParams.get("month") ? parseInt(searchParams.get("month")!) : null;
+    const periodType = searchParams.get("periodType");
+    const year = searchParams.get("year");
+    const month = searchParams.get("month");
 
     if (!periodType || !year || !month) {
-      return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
+      return NextResponse.json({ error: "Missing parameters", data: [] }, { status: 200 });
     }
 
     const { data, error } = await supabase
       .from("period_comparatives")
       .select("*")
       .eq("period_type", periodType)
-      .eq("year", year)
-      .eq("month", month);
+      .eq("year", parseInt(year))
+      .eq("month", parseInt(month));
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json({ error: error.message, data: [] }, { status: 200 });
+    }
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: data || [] });
   } catch (error) {
     console.error("Error fetching period comparatives:", error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json({ error: String(error), data: [] }, { status: 200 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
+    }
+
     const { periodType, year, month, data } = body;
 
-    if (!periodType || !year || !month || !data) {
-      return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
+    if (!periodType || year === undefined || month === undefined || !data) {
+      console.error("Missing parameters:", { periodType, year, month, data });
+      return NextResponse.json({ ok: false, error: "Missing parameters" }, { status: 400 });
     }
 
     const records = [
       {
         period_type: periodType,
-        year,
-        month,
+        year: parseInt(year),
+        month: parseInt(month),
         metric_type: "Facturacion",
         colon: data.facturacion?.colon || 0,
         serrano: data.facturacion?.serrano || 0,
@@ -56,8 +66,8 @@ export async function POST(req: NextRequest) {
       },
       {
         period_type: periodType,
-        year,
-        month,
+        year: parseInt(year),
+        month: parseInt(month),
         metric_type: "Clientes",
         colon: data.clientes?.colon || 0,
         serrano: data.clientes?.serrano || 0,
@@ -68,8 +78,8 @@ export async function POST(req: NextRequest) {
       },
       {
         period_type: periodType,
-        year,
-        month,
+        year: parseInt(year),
+        month: parseInt(month),
         metric_type: "Producto",
         colon: data.producto?.colon || 0,
         serrano: data.producto?.serrano || 0,
@@ -84,38 +94,41 @@ export async function POST(req: NextRequest) {
       .from("period_comparatives")
       .upsert(records, { onConflict: "period_type,year,month,metric_type" });
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+    }
 
     return NextResponse.json({ ok: true, message: "Data saved successfully" });
   } catch (error) {
     console.error("Error saving period comparatives:", error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: String(error) }, { status: 500 });
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const periodType = searchParams.get("periodType") as "mes_anterior" | "mismo_mes_aa" | "acumulado_mtd" | null;
-    const year = searchParams.get("year") ? parseInt(searchParams.get("year")!) : null;
-    const month = searchParams.get("month") ? parseInt(searchParams.get("month")!) : null;
+    const periodType = searchParams.get("periodType");
+    const year = searchParams.get("year");
+    const month = searchParams.get("month");
 
     if (!periodType || !year || !month) {
-      return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "Missing parameters" }, { status: 400 });
     }
 
     const { error } = await supabase
       .from("period_comparatives")
       .delete()
       .eq("period_type", periodType)
-      .eq("year", year)
-      .eq("month", month);
+      .eq("year", parseInt(year))
+      .eq("month", parseInt(month));
 
     if (error) throw error;
 
     return NextResponse.json({ ok: true, message: "Data deleted successfully" });
   } catch (error) {
     console.error("Error deleting period comparatives:", error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: String(error) }, { status: 500 });
   }
 }

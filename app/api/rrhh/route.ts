@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const date = searchParams.get("date");
 
     if (!date) {
-      return NextResponse.json({ error: "Missing date parameter" }, { status: 400 });
+      return NextResponse.json({ data: null }, { status: 200 });
     }
 
     const { data, error } = await supabase
@@ -20,22 +20,32 @@ export async function GET(req: NextRequest) {
       .eq("date", date)
       .single();
 
-    if (error && error.code !== "PGRST116") throw error;
+    if (error && error.code !== "PGRST116") {
+      console.error("Supabase error:", error);
+      return NextResponse.json({ data: null }, { status: 200 });
+    }
 
     return NextResponse.json({ data: data || null });
   } catch (error) {
     console.error("Error fetching RRHH data:", error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json({ data: null }, { status: 200 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
+    }
+
     const { date, data } = body;
 
     if (!date || !data) {
-      return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
+      console.error("Missing parameters:", { date, data });
+      return NextResponse.json({ ok: false, error: "Missing parameters" }, { status: 400 });
     }
 
     const { error } = await supabase
@@ -57,11 +67,14 @@ export async function POST(req: NextRequest) {
         { onConflict: "date" }
       );
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase error:", error);
+      return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+    }
 
     return NextResponse.json({ ok: true, message: "RRHH data saved successfully" });
   } catch (error) {
     console.error("Error saving RRHH data:", error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: String(error) }, { status: 500 });
   }
 }
