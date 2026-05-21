@@ -137,8 +137,10 @@ export function BranchTable() {
     name: string,
     facBD: BranchBreakdown,
     cliBD: BranchBreakdown,
+    proBD: BranchBreakdown,
     facAA: number,
     cliAA: number,
+    proAA: number,
   ): BranchRow => {
     const branchKey = name.toLowerCase() === "colón" ? "colon"
                     : name.toLowerCase() === "serrano" ? "serrano"
@@ -148,6 +150,7 @@ export function BranchTable() {
                     : "colon";
     const fac = facBD[branchKey] || 0;
     const cli = cliBD[branchKey] || 0;
+    const pro = proBD[branchKey] || 0;
     return {
       name,
       facturacion: fac,
@@ -160,6 +163,7 @@ export function BranchTable() {
       vsAACli: cliAA > 0 ? ((cli - cliAA) / cliAA) * 100 : 0,
       ticketProm: cli > 0 ? fac / cli : 0,
       vsAATicket: 0,
+      productos: pro,
       changoProm: 0,
       vsMesAntChango: 0,
       mts: null,
@@ -181,16 +185,17 @@ export function BranchTable() {
 
     // Rebuild rows using session data + AA reference
     const newRows: BranchRow[] = [
-      buildBranchRow("Colón",      acum.facturacion, acum.clientes, aa.facturacion.colon,     aa.clientes.colon),
-      buildBranchRow("Serrano",    acum.facturacion, acum.clientes, aa.facturacion.serrano,   aa.clientes.serrano),
-      buildBranchRow("Perón",      acum.facturacion, acum.clientes, aa.facturacion.peron,     aa.clientes.peron),
-      buildBranchRow("San Martín", acum.facturacion, acum.clientes, aa.facturacion.sanMartin, aa.clientes.sanMartin),
-      buildBranchRow("Virtual",    acum.facturacion, acum.clientes, aa.facturacion.virtual,   aa.clientes.virtual),
+      buildBranchRow("Colón",      acum.facturacion, acum.clientes, acum.producto, aa.facturacion.colon,     aa.clientes.colon,     aa.producto.colon),
+      buildBranchRow("Serrano",    acum.facturacion, acum.clientes, acum.producto, aa.facturacion.serrano,   aa.clientes.serrano,   aa.producto.serrano),
+      buildBranchRow("Perón",      acum.facturacion, acum.clientes, acum.producto, aa.facturacion.peron,     aa.clientes.peron,     aa.producto.peron),
+      buildBranchRow("San Martín", acum.facturacion, acum.clientes, acum.producto, aa.facturacion.sanMartin, aa.clientes.sanMartin, aa.producto.sanMartin),
+      buildBranchRow("Virtual",    acum.facturacion, acum.clientes, acum.producto, aa.facturacion.virtual,   aa.clientes.virtual,   aa.producto.virtual),
     ];
 
     // Calculate totals and percentages
     const totalFac = newRows.reduce((a, r) => a + r.facturacion, 0);
     const totalCli = newRows.reduce((a, r) => a + r.clientes, 0);
+    const totalPro = newRows.reduce((a, r) => a + r.productos, 0);
     const rowsWithPct = newRows.map(r => ({
       ...r,
       pctTotal: totalFac > 0 ? (r.facturacion / totalFac) * 100 : 0,
@@ -201,6 +206,7 @@ export function BranchTable() {
       name: "Total Cadena",
       facturacion: totalFac,
       clientes: totalCli,
+      productos: totalPro,
       pctTotal: 100,
       pctTotalCli: 100,
       vsMesAnt: 0,
